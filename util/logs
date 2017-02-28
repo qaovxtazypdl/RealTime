@@ -1,0 +1,10 @@
+#!/usr/bin/env perl
+
+$|++;
+
+die "Usage: $0 [-k | -u] <log file>" unless @ARGV;
+my $arg = shift if (@ARGV > 1);
+my $content = do { local $/;<>; };
+$content =~ s/=+KERN.*?=+[^=].*?(=|$)//msg if ($arg eq "-u");
+$content =~ s/=+USER.*?=+[^=].*?(=|$)//msg if ($arg eq "-k");
+print $content;

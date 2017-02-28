@@ -1,0 +1,8 @@
+To compile type simply type make, main.elf will be generated in the root directory
+To run copy main.elf to the tftp server and run
+
+load -h 10.15.167.5 <tftp elf location>;go
+
+For convenience the following pre-built binary has been created.
+
+load -h 10.15.167.5 "ARM/rvaiya/a4.elf";go
