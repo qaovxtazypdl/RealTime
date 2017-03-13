@@ -1,13 +1,17 @@
-#include <train/calibration.h>
+#include <calibration.h>
 #define NUM_CALIBRATIONS 3
 
-void init_calibration(struct train_calibration_t *calibration, int train_num) {
+void init_calibration(struct train_calibration *calibration, int train_num) {
   if (train_num == 71) {
      /* train 71 */
     calibration->train_num = 71;
     calibration->forward_offset = 25;
     calibration->reverse_offset = 142;
     calibration->train_length = 209;
+
+    calibration->acceleration = 134;
+    calibration->deceleration = 112;
+    calibration->short_move_time_offset = 21;
 
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 12;
@@ -48,6 +52,10 @@ void init_calibration(struct train_calibration_t *calibration, int train_num) {
     calibration->reverse_offset = 143;
     calibration->train_length = 208;
 
+    calibration->acceleration = 150;
+    calibration->deceleration = 125;
+    calibration->short_move_time_offset = 25;
+
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 10;
     calibration->speed_to_velocity[2] = 75;
@@ -86,6 +94,11 @@ void init_calibration(struct train_calibration_t *calibration, int train_num) {
     calibration->forward_offset = 24;
     calibration->reverse_offset = 143;
     calibration->train_length = 208;
+
+    // short move distance - 1/2 (t-)
+    calibration->acceleration = 143;
+    calibration->deceleration = 127;
+    calibration->short_move_time_offset = 28;
 
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 12;

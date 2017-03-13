@@ -1,0 +1,279 @@
+measuring stopping distance
+=======================
+A) E13
+B) C11
+start train topmost-left
+when E13/C11 hit, issue speed zero immediately
+measuring tape the stopping distance
+
+
+measuring travel velocity
+==========================
+measure the travel velocity in the large loop.
+start from bottom-right
+triggers the sensors in order:
+
+A) B15 A3 C13 E7 D7 E10 E13 D13 B2 C9
+B) e7 d7 d9 e12 d11 c16 c6 b15 a3 c13
+
+
+switch config
+============
+straight:
+A) 6 9 15 7 13 17
+B) 7 8 13 14 17
+
+
+
+trains: 63, 70, 71, 69
+
+
+issue commands:
+track 1/2
+calstop trnum trspeed
+
+track 1/2
+calvelo trnum trspeed
+
+
+
+
+measuring acceleration
+======================
+one sensor - stopped position at a distance d from sensor
+send calacc command with correct parameters
+
+- we have various d, t, v0 -> plot graph to find a.
+2d/t^2=a
+plot 2d vs t^2
+
+
+58
+=========
+d,t
+5,127
+10,171
+15,202
+20,227
+25,249
+30,265
+35,280
+40,297
+45,314
+50,326
+55,339
+60,349
+65,360
+========== 134, offset 52
+
+
+71
+=======
+5,127
+10,169
+15,208
+20,235
+25,252
+30,271
+35,291
+40,302
+45,313
+50,325
+55,337
+60,349
+65,361
+======= 143, offset 62
+
+
+
+
+
+mesuaring deceleration
+======================
+two sensors - accelerate to full speed, and
+  delay until distance d away from 2nd sensor (using past v cali)
+we have t, d
+
+d_decel = d - 1/2 acc*t_acc^2
+vi = acc*t_acc;
+vf = 0;
+
+vf^2 = vi^2 - 2ad
+
+(t,d)
+58
+============ 147, offset 21
+330,1412
+315,1278
+300,1144
+285,1023
+270,902
+255,780
+240,704
+225,635
+210,530
+180,363
+165,300
+150,241
+135,190
+120,132
+90,87
+60,26
+30,11
+
+
+71
+============ 152, offset 28
+330,1419
+315,1256
+300,1138
+285,976
+270,892
+255,759
+240,678
+225,584
+210,494
+180,350
+165,282
+150,221
+135,174
+120,129
+90,71
+60,27
+30,18
+
+
+
+
+
+we are assuming all switches and sensors are working!
+
+high
+===================
+reverse train not working in all cases
+
+refactor
+======================
+sensor server to do sensor attribution (handles all the logic about snesors and recovery/returns a sensor to a tid corresponding to a train when a sensor is successfully attributed to the train)
+  this gives a notion for switch failure and sensor failure recoverys
+pathing server to determine how the train will physically move (long move vs short move moving schema, reverse)
+stopping location tracking using timeouts
+
+mid
+===================
+(error recovery) + train self finding (stop location w/o teleport, restart by manually replacing?)
+
+
+unimp
+===================
+switch solenoid delay
+train stop distance too short compareo path length
+stop distance manual force adjust command for demo purposes
+
+
+"refactor"
+  path prediction use path object...
+
+update stopping distance on speed change (important?)
+sensor attribution - error correction
+short move calibration
+acceleration calibration and location querying
+switch as train moves instead of all at the same time
+
+make switching as its moving robust as fuck
+short move command sensor prediection
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+todo
+============
+command to train hook
+port over train logic
+sensor recovery/reset
+
+acceleration/deceleration
+short move
+
+
+on receipt of path
+==============
+initialize train position to fixed posijtion
+predict next sensor
+determine stopping time
+set speed
+
+on sensor trigger -> same subroutine
+on sensor trigger that stops the train -> speed zero.
+after expected decel time, update posn
+
+on sensor trigger that ends the train's life -> speed zero
+
+
+
+

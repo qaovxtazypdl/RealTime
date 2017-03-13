@@ -35,6 +35,16 @@ void handle_sw_cmd(char *turnout, char *pos) {
   }
 }
 
+void handle_track_cmd(char *track) {
+
+}
+
+void handle_goto_cmd(int train, char *destination) {
+  printf(COM2, "Attempting to reverse train %d\r\n", train);
+  tr_reverse(train);
+}
+
+
 void handle_rv_cmd(int train) {
   printf(COM2, "Attempting to reverse train %d\r\n", train);
   tr_reverse(train);

@@ -1,6 +1,8 @@
 tr, int, int
 sw, string, string
 rv, int
+goto, int, string
+track, string
 q
 help
 set_track, string
