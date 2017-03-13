@@ -3,6 +3,7 @@
 #include <gen/cmd.h>
 #include <train.h>
 #include <io.h>
+#include <track.h>
 #include <console.h>
 
 static void update_switch_entry(int turnout, int curved) {
@@ -61,6 +62,16 @@ void handle_tr_cmd(int train, int speed) {
   tr_set_speed(train, speed);
 }
 
+
+void handle_set_track_cmd(char *track) {
+  if(!streq(track, "A") || !streq(track, "a")) {
+    init_tracka(g_track, g_sensors);
+    printf(COM2, "Setting track to A");
+  } else {
+    init_trackb(g_track, g_sensors);
+    printf(COM2, "Setting track to B");
+  }
+}
 
 void handle_q_cmd() {
   SYSCALL(SYSCALL_TERMINATE); /* FIXME wrap this */
