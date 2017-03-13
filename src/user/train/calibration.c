@@ -1,4 +1,4 @@
-#include <train_calibrations.h>
+#include <train/calibration.h>
 #define NUM_CALIBRATIONS 3
 
 void init_calibration(struct train_calibration_t *calibration, int train_num) {
