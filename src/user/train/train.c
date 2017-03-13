@@ -1,38 +1,66 @@
+#include <common/syscall.h>
+#include <track_node.h>
 #include <train.h>
-#include <io.h>
-#include <ns.h>
+#include <routing.h>
+#include <sensors.h>
 #include <clock_server.h>
-/* All interactions with the train should be done using functions in this file */
 
-#define MAX_TRAINS 100
 
-static int speeds[MAX_TRAINS]; /* FIXME */
+static void update_path(struct track_node **path, struct track_node **new_path) {
+  int i;
+  struct track_node **c;
 
-void tr_set_switch(int turnout, int curved) { 
-  putc(TRAIN_COM, curved ? 34 : 33 ); 
-  putc(TRAIN_COM, (char)turnout); 
-  putc(TRAIN_COM, 32); 
+  for (i = 0, c = new_path; *c != NULL; c++, i++)
+    path[i] = *c;
+
+  path[i] = NULL;
 }
 
-void tr_request_sensor_data() { putc(TRAIN_COM, 133); }
-
-void tr_set_speed(int train, int speed) {
-  speeds[train] = speed;
-  putc(TRAIN_COM, (char)speed);
-  putc(TRAIN_COM, (char)train);
+static void update_velocity(struct track_node **sensors, int *velocity, int last_update) {
+  //TODO implement
+  *velocity = *velocity;
 }
 
-void tr_reverse(int train) { 
-  int speed = speeds[train];
+static void update_position(struct track_node **sensors, int *velocity, int last_update) {
+  //TODO implement.
+}
 
-  putc(TRAIN_COM, 0);
-  putc(TRAIN_COM, (char)train);
+void train() {
+  int td;
+  int num, i;
+  int velocity;
+  int direction;
+  int last_update;
+  struct track_node **c;
 
-  delay(300);
+  struct position position;
+  struct position destination;
+  struct track_node *path[MAX_PATH_LEN];
 
-  putc(TRAIN_COM, 15);
-  putc(TRAIN_COM, (char)train);
+  union {
+    struct track_node *sensors[NUM_SENSORS];
+    struct train_command command;
+  } msg;
 
-  putc(TRAIN_COM, (char)speed);
-  putc(TRAIN_COM, (char)train);
+  int sens_td = sensor_subscribe();
+  
+  last_update = get_time();
+  while(1) {
+    receive(&td, &msg, sizeof(msg));
+
+    if(td == sens_td) {
+      update_velocity(msg.sensors, &velocity, last_update);
+      update_position(msg.sensors, &position, last_update);
+      last_update = get_time();
+    } else {
+      switch(msg.command.type) {
+        case TRAIN_COMMAND_SET_PATH:
+          update_path(path, msg.command.path);
+          break;
+        default:
+          break;
+      }
+    }
+    
+  }
 }

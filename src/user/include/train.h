@@ -2,13 +2,17 @@
 #define _TRAIN_H_
 
 #define TRAIN_COM COM1
+#include <track_node.h>
 
-void init_train();
+struct position {
+  struct track_node *node;
+  int offset;
+};
 
-void init_train();
-void tr_set_switch(int turnout, int curved); 
-void tr_request_sensor_data();
-void tr_set_speed(int train, int speed);
-void tr_reverse(int train); 
-
+struct train_command {
+  enum train_command_type {
+    TRAIN_COMMAND_SET_PATH
+  } type;
+  struct track_node **path;
+};
 #endif

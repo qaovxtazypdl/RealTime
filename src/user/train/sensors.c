@@ -59,3 +59,7 @@ void sensor_printer() {
     putstr(COM2, str);
   }
 }
+/* Periodically sends a NULL terminated list of track_nodes to the calling task corresponding to actie sensors.
+Returns the td of the the task which sends. */
+int sensor_subscribe() {
+}

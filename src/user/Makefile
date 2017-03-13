@@ -5,7 +5,6 @@ LD = ld
 LDFLAGS = -N -g -r
 ASFLAGS = -mcpu=arm920 -mapcs-32 -mfloat-abi=soft
 CFLAGS = -c \
-				 -O2 \
 	 -fPIC \
 	 -Wall \
 	 -I. \
@@ -33,7 +32,7 @@ SRC_DIR=.
 
 CFILES:=$(shell find $(SRC_DIR) -name '*.c' -type f -printf "%P\n")
 ASMFILES:=$(shell find $(SRC_DIR) -name '*.s' -type f -printf "%P\n")
-OFILES=$(CFILES:%.c=$(OBJ_DIR)/%.o) $(ASMFILES:%.s=$(OBJ_DIR)/%_asm.o) obj/cmd/gen/cmd.o
+OFILES=$(CFILES:%.c=$(OBJ_DIR)/%.o) $(ASMFILES:%.s=$(OBJ_DIR)/%_asm.o) obj/cmd/gen/cmd.o obj/track_data/gen/track_data.o
 
 ifdef EMULATOR_BUILD
 	CFLAGS += -DEMULATOR_BUILD 
@@ -43,10 +42,16 @@ ifndef LIBGCC_DIR
 	LIBGCC_DIR = /u/wbcowan/gnuarm-4.0.2/lib/gcc/arm-elf/4.0.2
 endif
 
-.PHONY: clean cmd
+.PHONY: clean cmd track_data
 
 user.o: $(OFILES)
 	$(LD) $(LDFLAGS) -o $@ $(OFILES)
+
+track_data:
+	-mkdir -p include/gen track_data/gen
+	python util/parse_track.py track_data/trackb track_data/tracka
+	mv track_data.c track_data/gen
+	mv track_data.h include/gen
 
 cmd:
 	-mkdir include/gen cmd/gen
@@ -58,7 +63,7 @@ $(OBJ_DIR)/%_asm.o: %.s cmd
 	-mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) -o $@ $<
 
-$(OBJ_DIR)/%.o: %.c cmd
+$(OBJ_DIR)/%.o: %.c cmd track_data
 	-mkdir -p $(dir $@)
 	$(XCC) $(CFLAGS) -o $@ $<
 
