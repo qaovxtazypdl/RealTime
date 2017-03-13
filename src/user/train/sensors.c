@@ -1,18 +1,25 @@
 #include <train.h>
+#include <sensors.h>
 #include <ns.h>
 #include <clock_server.h>
 #include <io.h>
+#include <assert.h>
+#include <common/syscall.h>
+#include <track.h>
 
-#define SENSOR_DATA_INTERVAL 10
 #define SENSOR_LINE_NUM 1
+#define SENSOR_DATA_INTERVAL 10
 
-static char active_switches[5][16];
+static int relay_td = -1;
+static int courier_td = -1;
+static int notifier_td = -1;
 
-static void process_sensor_data(char active[5][16]) {
+
+static int process_sensor_data(struct track_node **sensors) {
   char b;
-  int i, j, num;
+  int i, j, num, s;
 
-  for (i = 0; i < 10; i++) {
+  for (i = 0, s = 0; i < 10; i++) {
     getc(TRAIN_COM, &b);
 
     for (j = 0; j < 8; j++) {
@@ -21,37 +28,38 @@ static void process_sensor_data(char active[5][16]) {
       else
         num = 8 - j;
 
-      if((1 << j) & b) {
-        active[i/2][num] = 1;
-      }
+      if((1 << j) & b)
+        sensors[s++] = g_sensors[((i/2)*16) + (num - 1)];
     }
   }
+
+  sensors[s] = NULL;
+  return s;
 }
 
 
-void sensor_printer() {
-  int i, j;
+static void printer() {
+  struct track_node *sensors[NUM_SENSORS + 1];
+  struct track_node **s;
   char str[1024];
   int sz = 0, seen = 0;
+  int td;
+  int r;
 
-  delay(50);
+  sensor_subscribe();
   while(1) {
-    delay(SENSOR_DATA_INTERVAL);
-    tr_request_sensor_data();
-    process_sensor_data(active_switches);
+    r = receive(&td, sensors, sizeof(sensors));
+    reply(td, NULL, 0);
 
     sz = 0;
     sz += sprintf(str, "%s%m%s", SAVE_CURSOR, (int[]){ 0, SENSOR_LINE_NUM }, CLEAR_LINE);
     sz += sprintf(str + sz, "[ ");
 
     seen = 0;
-    for (i = 0; i < sizeof(active_switches)/sizeof(active_switches[0]); i++)
-      for (j = 0; j < sizeof(active_switches[0]); j++)
-        if(active_switches[i][j]) {
-          seen++;
-          sz += sprintf(str + sz, "%c%d | ", 'A' + i, j);
-          active_switches[i][j] = 0;
-        }
+    for (s = sensors; *s != NULL; s++) {
+      seen++;
+      sz += sprintf(str + sz, "%s | ", (*s)->name);
+    }
 
     if(seen)
       sz -= 3;
@@ -59,7 +67,56 @@ void sensor_printer() {
     putstr(COM2, str);
   }
 }
-/* Periodically sends a NULL terminated list of track_nodes to the calling task corresponding to actie sensors.
-Returns the td of the the task which sends. */
+
+static void courier() {
+  struct task_node *sensors[NUM_SENSORS];
+  int clients[100];
+  int c = 0, i;
+  int sz;
+  int td;
+
+  while(1) {
+    sz = receive(&td, sensors, sizeof(sensors));
+    reply(td, NULL, 0);
+
+    if(td == notifier_td) {
+      for (i = 0; i < c; i++) {
+        send(clients[i], sensors, sz, NULL, 0);
+      }
+    } else {
+      clients[c++] = td;
+    }
+  }
+}
+
+static void notifier() {
+  int num;
+  int activated;
+  struct track_node *sensors[80];
+  while(1) {
+    delay(SENSOR_DATA_INTERVAL);
+    tr_request_sensor_data();
+    activated = process_sensor_data(sensors);
+    send(courier_td, sensors, sizeof(sensors[0]) * (activated + 1), NULL, 0);
+  }
+}
+
+/* API */ 
+
+/* Allows a task to subscribe to sensor updates from the notifier,
+   sensor data will be returned as a NULL terminated list of
+   track_node pointers. The calling task should provide a buffer of
+   track_node pointers which is NUM_SENSORS long to accomodate all
+   possible sensors, although fewer bytes may be returned. */
+
 int sensor_subscribe() {
+  assert(courier_td != -1, "The courier must be initialized before this function can be called.");
+  send(courier_td, NULL, 0, NULL, 0);
+  return courier_td;
+}
+
+void init_sensors() {
+  courier_td = create(0, courier);
+  notifier_td = create(0, notifier);
+  create(1, printer);
 }

@@ -9,15 +9,16 @@
 #include <ns.h>
 #include <train.h>
 #include <sensors.h>
+#include <track.h>
 
 void initTask() {
+  init_tracka(g_track, g_sensors);
   create(31, idle);
   init_name_server();
   init_clock_server();
   init_io();
-  
+  init_sensors();
 
   create(1, clock_printer);
-  create(1, sensor_printer);
   create(1, console_task);
 }

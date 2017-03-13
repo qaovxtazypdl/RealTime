@@ -2,6 +2,9 @@
 #define _SYSCALL_H_
 #include <common/event.h>
 
+//FIXME Find a sane place for this and remove duplicate instance int the kernel.
+#define MAX_TASKS 200
+
 #define SYS_STORE_RESULT(var) \
   asm("mov %0, r0\r\t" : "=r" (var));
 
@@ -53,6 +56,7 @@
 #define SYSCALL_REPLY 8
 #define SYSCALL_AWAIT_EVENT 9
 #define SYSCALL_TERMINATE 10
+#define SYSCALL_PRINT 11
 
 static char *syscall2str[] = {
   "SYSCALL_INITIALIZATION",
@@ -65,7 +69,8 @@ static char *syscall2str[] = {
   "SYSCALL_RECEIVE",
   "SYSCALL_REPLY",
   "SYSCALL_AWAIT_EVENT",
-  "SYSCALL_TERMINATE"
+  "SYSCALL_TERMINATE",
+  "SYSCALL_PRINT"
 };
 
 #define str(a) #a
@@ -82,5 +87,6 @@ int await_event(enum event type, void *payload);
 int send(int tid, const void *msg, int msg_sz, void *reply, int repl_sz);
 int receive(int *td, void *buf, int buf_len);
 int reply(int td, void *msg, int msg_len);
+int kern_print(char *fmt, ...);
 
 #endif

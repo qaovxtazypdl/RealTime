@@ -2,9 +2,7 @@
 #define _TASK_H_
 
 #include <proc_state.h>
-
-/* Convention: task descriptors start from 0 and are recycled (i.e they never exceed MAX_TASK) */
-#define MAX_TASKS 200
+#include <common/syscall.h>
 
 typedef enum task_state {
   TASK_STATE_EVENT_BLOCKED,

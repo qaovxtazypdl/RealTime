@@ -73,3 +73,11 @@ int reply(int td, void *msg, int msg_len) {
 
   return result;
 }
+
+int kern_print(char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  SYS_POPULATE_ARGS(fmt, args);
+  SYSCALL(SYSCALL_PRINT);
+  return 0;
+}

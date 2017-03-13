@@ -3,7 +3,7 @@
 #include <common/bwio.h>
 
 #define dbgt(arg0, ...) { \
-    bwprintf(COM2, "DELETE ME: %s (l%d): "arg0"\n\r",__func__, __LINE__, ##__VA_ARGS__); \
+    kern_print("DELETE ME: %s (l%d): "arg0"\n\r",__func__, __LINE__, ##__VA_ARGS__); \
 }
 #define dbgtc(cond, arg0, ...) { \
   if((cond)) { \

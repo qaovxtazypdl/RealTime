@@ -306,7 +306,7 @@ fh.write('''/* THIS FILE IS GENERATED CODE -- DO NOT EDIT */
 #endif
 ''' % maxidx)
 for fun in tracks:
-  fh.write("void %s(track_node *track);\n" % fun)
+  fh.write("void %s(track_node *track, track_node **sensors);\n" % fun)
 fh.close()
 
 ########################################################################
@@ -324,12 +324,14 @@ static void *memset(void *s, int c, unsigned int n) {
 ''')
 for fun in tracks:
   fh.write('''
-void %s(track_node *track) {
+void %s(track_node *track, track_node **sensors) {
   memset(track, 0, TRACK_MAX*sizeof(track_node));
 ''' % fun)
   for nd in tracks[fun].nodes:
     idx = nd.index
     fh.write("  track[%d].name = \"%s\";\n" % (idx, nd.name))
+    if nd.nodetype == 'sensor':
+        fh.write("  sensors[%d] = &track[%d];\n" % (nd.num, idx))
     nodetype = 'NODE_' + nd.nodetype.upper()
     fh.write("  track[%d].type = %s;\n" % (idx, nodetype))
     if nd.num != None:

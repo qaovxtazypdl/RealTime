@@ -3,7 +3,7 @@
 
 #define NUM_SENSORS 80
 
-void sensor_printer();
+void init_sensors();
 int sensor_subscribe();
 
 #endif

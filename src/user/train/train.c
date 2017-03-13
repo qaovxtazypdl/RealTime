@@ -63,7 +63,7 @@ void train() {
       update_position(msg.sensors, &position, last_update);
       update_stopping_time(msg.sensors, &stopping_time, velocity, position, path);
       last_update = get_time();
-      delay_td = delay_async(async, time);
+      delay_td = delay_until_async(stopping_time);
     } else if(td == delay_td) {
       //CHECK stopping time against current time and stop if equal.
     } else {

@@ -121,6 +121,14 @@ proc_state_t *swi(proc_state_t *state, int syscall) {
       bwprintf(COM2, "KERNEL TERMINATION REQUESTED BY %d\r\n", kern_current_task->td);
       return exit_proc_state;
       break;
+
+    /* Blocking print, useful for debugging */
+    case SYSCALL_PRINT:
+      bwprintf(COM2, "TASK %d: ", kern_current_task->td);
+      bwformat(COM2, kern_current_task->cpu_state->r0,
+               kern_current_task->cpu_state->r1);
+      return kern_current_task->cpu_state;
+      break;
   }
 
   /* FIXME could end up with several blocked but unterminated tasks (is it worth distinguishing between the two?) */
