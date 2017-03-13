@@ -22,7 +22,7 @@ static void update_velocity(struct track_node **sensors, int *velocity, int last
   *velocity = *velocity;
 }
 
-static void update_position(struct track_node **sensors, int *velocity, int last_update) {
+static void update_position(struct track_node **sensors, struct position *position, int last_update) {
   //TODO implement.
 }
 
@@ -61,7 +61,7 @@ void train() {
     if(td == sens_td) {
       update_velocity(msg.sensors, &velocity, last_update);
       update_position(msg.sensors, &position, last_update);
-      update_stopping_time(msg.sensors, &stopping_time, velocity, position, struct track_node **path);
+      update_stopping_time(msg.sensors, &stopping_time, velocity, position, path);
       last_update = get_time();
       delay_td = delay_async(async, time);
     } else if(td == delay_td) {
