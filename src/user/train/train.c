@@ -14,6 +14,7 @@ static void update_path(struct track_node **path, struct track_node **new_path) 
     path[i] = *c;
 
   path[i] = NULL;
+  path_activate(path);
 }
 
 static void update_velocity(struct track_node **sensors, int *velocity, int last_update) {
