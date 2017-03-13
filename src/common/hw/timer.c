@@ -34,7 +34,7 @@ void timer_clear_interrupt() {
   *((int*)(TIMER3_BASE + CLR_OFFSET)) = 1; 
 #ifdef EMULATOR_BUILD
   //FIXME this shouldn't be necessary with one-shot off
-  timer_load(10);
+  timer_load(10 * TIMER3_CLK_RATE);
 #endif
 }
 
