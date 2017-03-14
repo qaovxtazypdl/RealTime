@@ -4,3 +4,4 @@
 
 struct track_node g_track[TRACK_MAX];
 struct track_node *g_sensors[NUM_SENSORS];
+int g_is_track_a;

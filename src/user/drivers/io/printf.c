@@ -5,21 +5,23 @@
 #define MAX_STR_SZ 1024
 
 /* Pilfered from bwio */
-static int ui2a( char *buf, int mw, int num) {
+static int i2a( char *buf, int mw, int num) {
   int n = 0, i;
   int dgt;
   int d = 1;
   int sz = 1;
-
-  while( (num / d) >= 10 ) { 
+  if( num < 0 ) {
+    num = -num;
+    *buf++ = '-';
+    sz++;
+  }
+  while( (num / d) >= 10 ) {
     sz++;
     d *= 10;
   }
-
   if((mw - sz) > 0)
     for (i = 0; i < (mw - sz); i++)
-     *buf++ = '0'; 
-
+     *buf++ = '0';
   while( d != 0 ) {
     dgt = num / d;
     num %= d;
@@ -30,7 +32,6 @@ static int ui2a( char *buf, int mw, int num) {
     }
   }
   if(!n) *buf++ = '0';
-
   return (sz < mw) ? mw : sz;
 }
 
@@ -55,13 +56,13 @@ static int i2xa(int c, char *buf) {
 
   if(sz == 0)
     *buf = '0';
-			
+
 	return sz;
 }
 
 static int _sprintf(char *buf, char *fmt, va_list ap) {
 	char *tail = buf;
-	int esc = 0; 
+	int esc = 0;
 
 	int *pos;
 	char *c = fmt;
@@ -85,19 +86,19 @@ static int _sprintf(char *buf, char *fmt, va_list ap) {
 					*tail++ = va_arg(ap, char);
 					break;
 				case 'd':
-					tail += ui2a(tail, w, va_arg(ap, int));
+					tail += i2a(tail, w, va_arg(ap, int));
 					break;
 				case 's':
 					tail += strcpy(tail, va_arg(ap, char*));
 					break;
 				/* non-standard: moves to the line described by the x,y array */
-				case 'm': 
+				case 'm':
 					pos = va_arg(ap, int*);
 					*tail++ = 27;
 					*tail++ = '[';
-					tail += ui2a(tail, 0, pos[1]);
+					tail += i2a(tail, 0, pos[1]);
 					*tail++ = ';';
-					tail += ui2a(tail, 0, pos[0]);
+					tail += i2a(tail, 0, pos[0]);
 					*tail++ = 'H';
 					break;
 			}
@@ -117,7 +118,7 @@ static int _sprintf(char *buf, char *fmt, va_list ap) {
 	return tail - buf;
 }
 
-/* OPT using a global variable and doing this in the IO server might be cheaper with caching, 
+/* OPT using a global variable and doing this in the IO server might be cheaper with caching,
    not sure if it's worth doing at this point. */
 
 /* Expensive, prefer putstr when possible, assumes formatted string is less than 1024 characters */

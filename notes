@@ -261,19 +261,11 @@ acceleration/deceleration
 short move
 
 
+
+
 on receipt of path
 ==============
-initialize train position to fixed posijtion
-predict next sensor
-determine stopping time
-set speed
-
-on sensor trigger -> same subroutine
-on sensor trigger that stops the train -> speed zero.
 after expected decel time, update posn
-
-on sensor trigger that ends the train's life -> speed zero
-
-
-
+reverse?
+offset on stop
 

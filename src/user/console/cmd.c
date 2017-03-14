@@ -58,9 +58,11 @@ void handle_tr_cmd(int train, int speed) {
 
 void handle_set_track_cmd(char *track) {
   if(!streq(track, "A") || !streq(track, "a")) {
+    g_is_track_a = 1;
     init_tracka(g_track, g_sensors);
     printf(COM2, "Setting track to A");
   } else {
+    g_is_track_a = 0;
     init_trackb(g_track, g_sensors);
     printf(COM2, "Setting track to B");
   }
@@ -104,9 +106,9 @@ void handle_route_train_cmd(int num, char *src, char *dst) {
   train_set_path(td, path, len);
 
   if(!len) {
-    printf(COM2, "No route from %s to %s found", src, dst);
+    printf(COM2, "No route from %s to %s found\n\r", src, dst);
   } else {
-    printf(COM2, "Setting route from %s to %s", src, dst);
+    printf(COM2, "Setting route from %s to %s\n\r", src, dst);
   }
 }
 

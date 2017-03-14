@@ -101,7 +101,7 @@ static void notifier() {
   }
 }
 
-/* API */ 
+/* API */
 
 /* Allows a task to subscribe to sensor updates from the notifier,
    sensor data will be returned as a NULL terminated list of

@@ -52,7 +52,7 @@ int path_find(struct track_node *src,
   struct track_node *neighbours[3];
   struct track_node **n;
 
-  for (i = 0; i < TRACK_MAX; i++) 
+  for (i = 0; i < TRACK_MAX; i++)
     g_track[i].seen = 0;
 
   path[p] = src;
@@ -86,10 +86,10 @@ int path_activate(struct track_node **path) {
   for(c = path;*c != NULL;c++) {
     if((*c)->type == NODE_BRANCH) {
       if(*(c+1) && ((*c)->edge[DIR_STRAIGHT].dest == *(c+1))) {
-        printf(COM2, "Making switch %d straight\r\n", (*c)->num);
+        //printf(COM2, "Making switch %d straight\r\n", (*c)->num);
         tr_set_switch((*c)->num, 0);
       } else {
-        printf(COM2, "Making switch %d curved\r\n", (*c)->num);
+        //printf(COM2, "Making switch %d curved\r\n", (*c)->num);
         tr_set_switch((*c)->num, 1);
       }
     }
