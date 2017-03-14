@@ -21,27 +21,34 @@ struct train_command {
   struct track_node *path[MAX_PATH_LEN];
 };
 
+enum travel_method {
+  SHORT_MOVE,
+  LONG_MOVE,
+};
+
 struct train_state {
+  // location and dynamics
   int train_num;
   int speed;
   int is_reversed;
-
-  int stopping_time;
-  struct position stop_position;
-  int delay_tid;
+  struct train_calibration calibration;
 
   struct position position;
   struct track_node *path[MAX_PATH_LEN];
   int path_index;
 
+  // stopping
+  int stopping_time;
+  struct position stop_position;
+  int delay_tid;
+  enum travel_method travel_method;
+
+  // expectation/sensor attribution
   struct track_node *expected_next_sensor;
   int expected_next_sensor_index;
   int expected_time_at_next_sens;
   int dist_to_next_sens;
   int last_sensor_update;
-
-  struct train_calibration calibration;
-
 };
 
 /* API */

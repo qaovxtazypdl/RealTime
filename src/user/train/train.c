@@ -9,6 +9,28 @@
 #include <sensors.h>
 #include <clock_server.h>
 
+
+unsigned int isqrt(unsigned int x) {
+    unsigned int op, res, one;
+
+    op = x;
+    res = 0;
+
+    /* "one" starts at the highest power of four <= than the argument. */
+    one = 1 << 30;  /* second-to-top bit set */
+    while (one > op) one >>= 2;
+
+    while (one != 0) {
+        if (op >= res + one) {
+            op -= res + one;
+            res += one << 1;  // <-- faster than 2 * one
+        }
+        res >>= 1;
+        one >>= 2;
+    }
+    return res;
+}
+
 void update_position_display(struct train_state *state) {
   printf(COM2,
     "%s%m%scurrent position %d mm past sensor %d. Next sensor: %d\n\r",
@@ -120,37 +142,64 @@ int advance_train_by_sensor(struct track_node **path, int path_index, int *offse
   return return_sensor;
 }
 
+void update_speed(struct train_state *state, int speed, int until) {
+  state->speed = speed;
+  tr_set_speed(state->train_num, state->speed);
+
+  if (until > 0) {
+    state->delay_tid = delay_until_async(until);
+  }
+}
+
 // returns -1 if stopping position is behind
-int update_stopping_position(struct train_state *state) {
-  int distance = path_length(state->path);
-  if (distance < state->position.offset) {
-    return -1;
-  }
-  distance -= state->position.offset;
-
-  int stopping_distance =
-    (state->is_reversed ? state->calibration.reverse_offset : state->calibration.forward_offset) +
-    (state->calibration.stopping_distance[state->speed]);
-
-  state->stop_position.node = state->position.node;
-  state->stop_position.offset = state->position.offset;
-  if (distance < stopping_distance) {
-    return -1;
-  }
-  int distance_before_stop = distance - stopping_distance;
-
-  int stop_offset = 0;
-  int stop_index = advance_train_by_sensor(state->path, state->path_index, &stop_offset, distance_before_stop);
-  state->stop_position.node = state->path[stop_index];
-  state->stop_position.offset = stop_offset;
-
-  // if stop at current node, just stop immediately
-  if (state->position.node->num == state->stop_position.node->num) {
+int update_travel_plans(struct train_state *state) {
+  int distance = path_length(state->path) - state->position.offset;
+  if (distance < 0) {
     return -1;
   }
 
-  printf(COM2, "stopping position determined: %d mm past sensor %d\n\r", state->stop_position.offset, state->stop_position.node->num);
-  return 0;
+  if (distance < 1600) {
+    state->travel_method = SHORT_MOVE;
+
+    // model for short moves:
+    // distance = 1/2 * k * (t(s)-offset)^2, where k = (a_a + a_a * a_a / a_d) / 2.
+    int a_a = state->calibration.acceleration;
+    int a_d = state->calibration.deceleration;
+    int offset = state->calibration.short_move_time_offset;
+    int k = (a_a + a_a * a_a / a_d) / 2;
+    int short_move_ticks = isqrt(10000 * distance / k) + offset;
+
+    state->stopping_time = get_time() + short_move_ticks;
+    printf(COM2, "short move parameters determined: k=%d, ticks=%d, distance=%d", k, short_move_ticks, distance);
+    update_speed(state, 14, state->stopping_time);
+    return 0;
+  } else {
+    state->travel_method = LONG_MOVE;
+    int stopping_distance =
+      (state->is_reversed ? state->calibration.reverse_offset : state->calibration.forward_offset) +
+      (state->calibration.stopping_distance[state->speed]);
+
+    state->stop_position.node = state->position.node;
+    state->stop_position.offset = state->position.offset;
+    if (distance < stopping_distance) {
+      return -1;
+    }
+    int distance_before_stop = distance - stopping_distance;
+
+    int stop_offset = 0;
+    int stop_index = advance_train_by_sensor(state->path, state->path_index, &stop_offset, distance_before_stop);
+    state->stop_position.node = state->path[stop_index];
+    state->stop_position.offset = stop_offset;
+
+    // if stop at current node, just stop immediately
+    if (state->position.node->num == state->stop_position.node->num) {
+      return -1;
+    }
+
+    printf(COM2, "stopping position determined: %d mm past sensor %d\n\r", state->stop_position.offset, state->stop_position.node->num);
+    update_speed(state, 12, 0);
+    return 0;
+  }
 }
 
 int update_sensor_prediction(struct train_state *state) {
@@ -179,11 +228,6 @@ int update_sensor_prediction(struct train_state *state) {
   }
 }
 
-void update_speed(struct train_state *state) {
-  state->speed = 14;
-  tr_set_speed(state->train_num, state->speed);
-}
-
 void update_path(struct train_state *state, struct track_node **path, struct track_node **new_path) {
   int i;
   struct track_node **c;
@@ -196,8 +240,7 @@ void update_path(struct train_state *state, struct track_node **path, struct tra
 
   state->path_index = 0;
   update_sensor_prediction(state);
-  update_speed(state);
-  update_stopping_position(state);
+  update_travel_plans(state);
 
   update_sensor_display(state, 0, 0);
   update_position_display(state);
@@ -211,8 +254,8 @@ void update_position(struct train_state *state, struct track_node **sensors) {
       int delta_t = current_time - state->expected_time_at_next_sens;
       int delta_d = delta_t * state->calibration.speed_to_velocity[state->speed] / 100;
 
-      int actual_velocity = state->dist_to_next_sens * 100 / (current_time - state->last_sensor_update);
-      int expected_velocity = state->calibration.speed_to_velocity[state->speed];
+      // int actual_velocity = state->dist_to_next_sens * 100 / (current_time - state->last_sensor_update);
+      // int expected_velocity = state->calibration.speed_to_velocity[state->speed];
 
       // set current position to the position of the sensor.
       state->position.node = state->expected_next_sensor;
@@ -224,6 +267,7 @@ void update_position(struct train_state *state, struct track_node **sensors) {
       update_sensor_display(state, delta_t, delta_d);
 
       if (
+        state->travel_method == LONG_MOVE &&
         state->position.node->num == state->stop_position.node->num
       ) {
         int distance_until_stop_command = state->stop_position.offset;

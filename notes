@@ -265,7 +265,14 @@ short move
 
 on receipt of path
 ==============
+need a way to specify offsets
 after expected decel time, update posn
-reverse?
-offset on stop
+estimation for acceleration/deceleration
+SHORT MOVES
+
+later
+==============
+getter for current position
+reverse - handle through path graph
+
 
