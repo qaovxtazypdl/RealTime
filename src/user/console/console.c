@@ -71,3 +71,22 @@ void console_task() {
   initialize_switch_table();
   handle_io();
 }
+
+void update_switch_entry(int turnout, int curved) {
+  int line;
+
+  if(turnout > 152)
+    line = SWITCH_TABLE_LINE_NUM + 18 + turnout - 153;
+  else
+    line = SWITCH_TABLE_LINE_NUM + turnout - 1;
+
+  printf(COM2,
+      "%s%s%m%d\t%c%s%s",
+      curved ? "\x1B[32m" : "\x1B[36m",
+      SAVE_CURSOR,
+      (int[]){0, line},
+      turnout,
+      curved ? 'C' : 'S',
+      "\x1B[39m",
+      RESTORE_CURSOR);
+}

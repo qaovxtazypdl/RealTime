@@ -33,7 +33,7 @@ static void update_stopping_time(struct track_node **sensors,
                                  struct track_node **path) {
 }
 
-void train() {
+static void train() {
   int td;
   int num, i;
   int velocity;
@@ -51,12 +51,16 @@ void train() {
     struct train_command command;
   } msg;
 
+  receive(&td, &num, sizeof(num));
+  reply(td, NULL, 0);
+
   int sens_td = sensor_subscribe();
   int delay_td = -1;
   
   last_update = get_time();
   while(1) {
     receive(&td, &msg, sizeof(msg));
+    reply(td, NULL, 0);
 
     if(td == sens_td) {
       update_velocity(msg.sensors, &velocity, last_update);
@@ -77,4 +81,21 @@ void train() {
     }
     
   }
+}
+
+/* Functions for communicating with a train task. */
+int create_train(int num) {
+  int td = create(0, train);
+  send(td, &num, sizeof(num), NULL, 0);
+  return td;
+}
+
+void train_set_path(int td, struct track_node **path, int len) {
+  struct train_command msg;
+  struct track_node **n;
+  int path_sz = (len + 1) * sizeof(struct track_node*);
+
+  msg.type = TRAIN_COMMAND_SET_PATH;
+  memcpy(msg.path, path, path_sz);
+  send(td, &msg, path_sz + sizeof(msg.type), NULL, 0);
 }

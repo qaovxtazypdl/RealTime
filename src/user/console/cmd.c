@@ -6,24 +6,7 @@
 #include <track.h>
 #include <console.h>
 
-static void update_switch_entry(int turnout, int curved) {
-  int line;
-
-  if(turnout > 152)
-    line = SWITCH_TABLE_LINE_NUM + 18 + turnout - 153;
-  else
-    line = SWITCH_TABLE_LINE_NUM + turnout - 1;
-
-  printf(COM2,
-      "%s%s%m%d\t%c%s%s",
-      curved ? "\x1B[32m" : "\x1B[36m",
-      SAVE_CURSOR,
-      (int[]){0, line},
-      turnout,
-      curved ? 'C' : 'S',
-      "\x1B[39m",
-      RESTORE_CURSOR);
-}
+static trains[MAX_TRAIN] = {0};
 
 void handle_sw_cmd(char *turnout, char *pos) {
   int curved = streq(pos, "C") && streq(pos, "c") ? 0 : 1;
@@ -73,14 +56,66 @@ void handle_set_track_cmd(char *track) {
   }
 }
 
+void handle_path_cmd(char *src, char *dst) {
+  struct track_node *srcn = lookup_track_node(src);
+  struct track_node *dstn = lookup_track_node(dst);
+  struct track_node *path[MAX_PATH_LEN];
+
+  if(!dstn || !srcn) {
+    printf(COM2, "%s is not a valid node\r\n", src ? dst : src);
+    return;
+  }
+
+  path_find(srcn, dstn, path);
+  path_activate(path);
+}
+
 void handle_q_cmd() {
   SYSCALL(SYSCALL_TERMINATE); /* FIXME wrap this */
+}
+
+void handle_route_train_cmd(int num, char *src, char *dst) {
+  int td = trains[num];
+  if(!td) {
+    printf(COM2, "Train %d does not exist\r\n", num);
+    return;
+  }
+  int len;
+  struct track_node *srcn = lookup_track_node(src);
+  struct track_node *dstn = lookup_track_node(dst);
+  struct track_node *path[MAX_PATH_LEN];
+
+  if(!dstn || !srcn) {
+    printf(COM2, "%s is not a valid node\r\n", src ? dst : src);
+    return 0;
+  }
+
+  len = path_find(srcn, dstn, path);
+  train_set_path(td, path, len);
+
+  if(!len) {
+    printf(COM2, "No route from %s to %s found", src, dst);
+  } else {
+    printf(COM2, "Setting route from %s to %s", src, dst);
+  }
+}
+
+void handle_create_train_cmd(int num) {
+  if(num < 0 || num > MAX_TRAIN) {
+    printf(COM2, "Invalid train number\r\n");
+  } else if(!trains[num]) {
+    printf(COM2, "Creating train %d\r\n", num);
+    tr_set_speed(num, 0);
+    trains[num] = create_train(num);
+  } else
+    printf(COM2, "Train already exists!\r\n");
 }
 
 void handle_help_cmd() {
   putstr(COM2, "Valid Commands: \r\n\r\n");
   printf(COM2, "\ttr <train number> <speed> - Sets the speed of the train\r\n");
-  printf(COM2, "\tsw <switch number> <C | S> - Changes the position of the switch to either curved or straight\r\n");
+  printf(COM2, "\tsw <switch number> <C|S> - Changes the position of the switch to either curved or straight\r\n");
   printf(COM2, "\trv <train number> - Reverses the given train\r\n");
   printf(COM2, "\tq - Exits the program\r\n");
+  printf(COM2, "\tset_track <A|B> - Set the track being used (default is A)\r\n");
 }

@@ -4,3 +4,6 @@ rv, int
 q
 help
 set_track, string
+path, string, string
+create_train, int
+route_train, int, string, string

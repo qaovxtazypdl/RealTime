@@ -3,7 +3,8 @@
 #include <io.h>
 #include <ns.h>
 #include <clock_server.h>
-/* All interactions with the train should be done using functions in this file */
+/* Deprecated, useful for debugging, but that's about it. All communication with the train 
+should happens via the train task. */
 
 #define MAX_TRAINS 100
 
@@ -13,6 +14,7 @@ void tr_set_switch(int turnout, int curved) {
   putc(TRAIN_COM, curved ? 34 : 33 ); 
   putc(TRAIN_COM, (char)turnout); 
   putc(TRAIN_COM, 32); 
+  update_switch_entry(turnout, curved);
 }
 
 void tr_request_sensor_data() { putc(TRAIN_COM, 133); }

@@ -7,4 +7,5 @@
 #define PROMPT "> "
 
 void console_task();
+void update_switch_entry(int turnout, int curved);
 #endif
