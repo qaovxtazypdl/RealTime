@@ -26,15 +26,29 @@ enum travel_method {
   LONG_MOVE,
 };
 
+enum velocity_state {
+  ACCELERATING,
+  DECELERATING,
+  UNIFORM
+};
+
+struct movement {
+  enum velocity_state state;
+  int start_velocity;
+  int acceleration_update_time;
+  int duration;
+};
+
 struct train_state {
   // location and dynamics
   int train_num;
   int speed;
   int is_reversed;
   struct train_calibration calibration;
+  struct movement accel;
 
-  struct position position;
   struct track_node *path[MAX_PATH_LEN];
+  struct position position;
   int path_index;
 
   // stopping
@@ -46,9 +60,7 @@ struct train_state {
   // expectation/sensor attribution
   struct track_node *expected_next_sensor;
   int expected_next_sensor_index;
-  int expected_time_at_next_sens;
   int dist_to_next_sens;
-  int last_sensor_update;
 };
 
 /* API */

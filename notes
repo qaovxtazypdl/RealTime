@@ -253,22 +253,18 @@ short move command sensor prediection
 
 todo
 ============
-command to train hook
-port over train logic
 sensor recovery/reset
-
-acceleration/deceleration
-short move
-
-
-
-
-on receipt of path
-==============
-need a way to specify offsets
-after expected decel time, update posn
 estimation for acceleration/deceleration
-SHORT MOVES
+multiple commands without touching train (update posn after stop, check offsets)
+simplify by putting a delay on acceleration to make it constant so we dont have to deal with acceleration timing out
+
+rv
+===
+need a way to specify offsets
+reverseable
+
+
+
 
 later
 ==============

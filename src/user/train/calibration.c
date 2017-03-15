@@ -95,7 +95,6 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->reverse_offset = 143;
     calibration->train_length = 208;
 
-    // short move distance - 1/2 (t-)
     calibration->acceleration = 143;
     calibration->deceleration = 127;
     calibration->short_move_time_offset = 28;
