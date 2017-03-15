@@ -54,7 +54,8 @@ struct train_state {
   // stopping
   int stopping_time;
   struct position stop_position;
-  int delay_tid;
+  int stop_delay_tid;
+  int update_delay_tid;
   enum travel_method travel_method;
 
   // expectation/sensor attribution

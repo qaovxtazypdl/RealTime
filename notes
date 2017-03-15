@@ -242,10 +242,10 @@ short move command sensor prediection
 
 
 
-
-
-
-
+train 71 - decel 169
+train 58 - decel 177
+time offset (sensor AND train) 0.45
+time offset (train) ~ 0.25
 
 
 
@@ -254,9 +254,7 @@ short move command sensor prediection
 todo
 ============
 sensor recovery/reset
-estimation for acceleration/deceleration
-multiple commands without touching train (update posn after stop, check offsets)
-simplify by putting a delay on acceleration to make it constant so we dont have to deal with acceleration timing out
+test acceleration sensor/better sensor display
 
 rv
 ===
@@ -268,7 +266,10 @@ reverseable
 
 later
 ==============
-getter for current position
+getter for current position/get position->offset, and route from there from command line - delete position reset...
 reverse - handle through path graph
+multiple commands without touching train (update posn after stop, check offsets)
+investigate long moves using acceleration mechanics
+investigate more accurate decelerations
 
 
