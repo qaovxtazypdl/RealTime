@@ -10,13 +10,19 @@
 #include <clock_server.h>
 
 #define DURATION_FOREVER 0x0fffffff
-#define SPEEDUP_DELAY 45
+#define SPEEDUP_DELAY 190
 
 unsigned int isqrt(unsigned int x){unsigned int a,b,c;a=x;b=0;c=1<<30;while(c>a)c>>=2;while(c!=0){if(a>=b+c){a-=b+c;b+=c<<1;}b>>=1;c>>=2;}return b;}
 
 void update_position_display(struct train_state *state) {
+  /*printf(COM2,
+    "current position %d mm past sensor %d. Next sensor: %d\n\r",
+    state->position.offset, state->position.node->num,
+    state->expected_next_sensor->num
+  );*/
+  /*
   printf(COM2,
-    "%s%m%scurrent position %d mm past sensor %d. Next sensor: %d\n\r",
+    "%s%m%scurrent position %d mm past sensor %d. Next sensor: %d\n\r%s",
     SAVE_CURSOR,
     (int[]){0, 41},
     CLEAR_LINE,
@@ -24,9 +30,16 @@ void update_position_display(struct train_state *state) {
     state->expected_next_sensor->num,
     RESTORE_CURSOR
   );
+  */
 }
 
 void update_sensor_display(struct train_state *state, int delta_t, int delta_d) {
+  printf(COM2,
+    "train %d ~ delta_t = %d, delta_d = %d mm, next sensor: %d\n\r",
+    state->train_num,
+    delta_t, delta_d, state->expected_next_sensor->num
+  );
+  /*
   printf(COM2,
     "%s%m%s train %d ~ delta_t = %d, delta_d = %d mm, next sensor: %d\n\r%s",
     SAVE_CURSOR,
@@ -36,6 +49,7 @@ void update_sensor_display(struct train_state *state, int delta_t, int delta_d) 
     delta_t, delta_d, state->expected_next_sensor->num,
     RESTORE_CURSOR
   );
+  */
 }
 
 int get_distance_to_next_node_in_path(struct track_node **path, int path_index, int *distance) {
@@ -131,6 +145,9 @@ int min(int a, int b) {
 
 void update_acceleration_and_position(struct train_state *state) {
   int current_time = get_time();
+  if (current_time < state->accel.acceleration_update_time) {
+    return;
+  }
 
   int d = 0;
   int a = 0;
@@ -145,12 +162,18 @@ void update_acceleration_and_position(struct train_state *state) {
   }
 
   int t = min(current_time - state->accel.acceleration_update_time, state->accel.duration);
-  d = (v_i * t / 100) + (a * t * t / 2 / 10000);
 
+  d = (v_i * t / 100) + (a * t * t / 2 / 10000);
   if (current_time - state->accel.acceleration_update_time >= state->accel.duration) {
     // finished accelerating... set back to constant velocity
-    int v_f = state->calibration.speed_to_velocity[state->speed];
+    int v_f = state->speed == 0 ? 0 : state->calibration.speed_to_velocity[state->speed];
     d += v_f * (current_time - state->accel.acceleration_update_time - state->accel.duration) / 100;
+
+    if (state->accel.state == ACCELERATING) {
+      printf(COM2, "Accleration Finished\n\r");
+    } else if (state->accel.state == DECELERATING) {
+      printf(COM2, "Deceleration Finished\n\r");
+    }
 
     state->accel.state = UNIFORM;
     state->accel.acceleration_update_time = current_time;
@@ -164,7 +187,9 @@ void update_acceleration_and_position(struct train_state *state) {
     state->accel.acceleration_update_time = current_time;
     state->accel.start_velocity = v_f;
   }
+
   state->position.offset += d;
+  update_position_display(state);
 }
 
 void update_speed(struct train_state *state, int speed, int until) {
@@ -183,11 +208,13 @@ void update_speed(struct train_state *state, int speed, int until) {
       current_time - state->accel.acceleration_update_time, state->accel.duration
     ) / 100;
     state->accel.state = speed > state->speed ? ACCELERATING : DECELERATING;
+    printf(COM2, speed > state->speed ? "Accelerating\n\r" : "Decelerating\n\r");
+
     state->accel.start_velocity = old_velocity;
     // it takes some time for the train to register a speed command.
     state->accel.acceleration_update_time = current_time;
     state->accel.duration = 100 *
-      (state->calibration.speed_to_velocity[speed] - state->calibration.speed_to_velocity[state->speed]) / a;
+      (state->calibration.speed_to_velocity[speed] - old_velocity) / a;
 
     // set speed
     state->speed = speed;
@@ -284,10 +311,12 @@ void update_path(struct train_state *state, struct track_node **new_path) {
   state->position.node = state->path[0];
   state->position.offset = 0;
   state->path_index = 0;
+
   update_travel_plans(state);
   path_activate(state->path);
   update_sensor_prediction(state);
 
+  printf(COM2, "\n\r\n\r");
   update_sensor_display(state, 0, 0);
   update_position_display(state);
 }
@@ -308,7 +337,7 @@ void update_position(struct train_state *state, struct track_node **sensors) {
 
       // corrects the offset to 0 to the current sensor
       state->position.node = state->expected_next_sensor;
-      state->position.offset = 0;
+      state->position.offset = delta_d / 2;
       state->path_index = state->expected_next_sensor_index;
 
       update_sensor_prediction(state);

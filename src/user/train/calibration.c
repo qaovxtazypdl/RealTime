@@ -9,8 +9,8 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->reverse_offset = 142;
     calibration->train_length = 209;
 
-    calibration->acceleration = 134;
-    calibration->deceleration = calibration->acceleration;
+    calibration->acceleration = 137;
+    calibration->deceleration = 126;
     calibration->k = 147;
     calibration->speed_change_time_offset = 21;
 
@@ -97,8 +97,8 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->reverse_offset = 143;
     calibration->train_length = 208;
 
-    calibration->acceleration = 143;
-    calibration->deceleration = calibration->acceleration;
+    calibration->acceleration = 134;
+    calibration->deceleration = 112;
     calibration->speed_change_time_offset = 28;
     calibration->k = 152;
 
