@@ -196,7 +196,7 @@ void update_speed(struct train_state *state, int speed, int until) {
   if (speed != state->speed) {
     int current_time = get_time();
     if (state->speed == 0 && speed > 0) {
-      current_time += state->calibration.speed_change_time_offset;
+      current_time += state->calibration.startup_time;
     }
 
     // update position based on old accel profile
