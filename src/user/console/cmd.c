@@ -6,7 +6,7 @@
 #include <track.h>
 #include <console.h>
 
-static trains[MAX_TRAIN] = {0};
+static int trains[MAX_TRAIN] = {0};
 
 void handle_sw_cmd(char *turnout, char *pos) {
   int curved = streq(pos, "C") && streq(pos, "c") ? 0 : 1;
@@ -34,16 +34,6 @@ void handle_sw_cmd(char *turnout, char *pos) {
     update_switch_entry(sw, curved);
   }
 }
-
-void handle_track_cmd(char *track) {
-
-}
-
-void handle_goto_cmd(int train, char *destination) {
-  printf(COM2, "Attempting to reverse train %d\r\n", train);
-  tr_reverse(train);
-}
-
 
 void handle_rv_cmd(int train) {
   printf(COM2, "Attempting to reverse train %d\r\n", train);
@@ -103,7 +93,7 @@ void handle_route_train_cmd(int num, char *src, char *dst) {
   }
 
   len = path_find(srcn, dstn, path);
-  train_set_path(td, path, len);
+  train_set_path(td, path, len, 0);
 
   if(!len) {
     printf(COM2, "No route from %s to %s found\n\r", src, dst);
@@ -122,6 +112,42 @@ void handle_create_train_cmd(int num) {
   } else
     printf(COM2, "Train already exists!\r\n");
 }
+
+void handle_goto_cmd(int num, char *dst, int offset_mm) {
+  int td = trains[num];
+  if(!td) {
+    printf(COM2, "Train %d does not exist\r\n", num);
+    return;
+  }
+
+  struct position posn;
+  train_get_position(td, &posn);
+
+  int len;
+  struct track_node *srcn = posn.node;
+  struct track_node *dstn = lookup_track_node(dst);
+  struct track_node *path[MAX_PATH_LEN];
+
+  if(!srcn) {
+    printf(COM2, "srcn returned from get position should not have been null\r\n");
+    return;
+  }
+  if(!dstn) {
+    printf(COM2, "%s is not a valid node\r\n", dst);
+    return;
+  }
+
+  len = path_find(srcn, dstn, path);
+  train_set_path(td, path, len, offset_mm);
+
+  if(!len) {
+    printf(COM2, "No route from %s to %s found\n\r", posn.node->name, dst);
+  } else {
+    printf(COM2, "Setting route from %s to %s\n\r", posn.node->name, dst);
+  }
+}
+
+
 
 void handle_help_cmd() {
   putstr(COM2, "Valid Commands: \r\n\r\n");

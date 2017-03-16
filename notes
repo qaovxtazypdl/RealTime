@@ -253,13 +253,13 @@ time offset (train) ~ 0.25
 
 todo
 ============
-sensor recovery/reset
-stop position and querying
+short move robust correctness (sensor adjustment)
 
 rv
 ===
 need a way to specify offsets
 reverseable
+sensor recovery/reset
 
 
 
