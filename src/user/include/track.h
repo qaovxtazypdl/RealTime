@@ -5,6 +5,7 @@
 
 extern struct track_node g_track[];
 extern struct track_node *g_sensors[];
+/* See the other comment about this. */
 extern int g_is_track_a;
 
 #endif

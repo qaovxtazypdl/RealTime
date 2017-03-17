@@ -5,7 +5,7 @@
 #include <ns.h>
 #include <clock_server.h>
 /* Deprecated, useful for debugging, but that's about it. All communication with the train
-should happens via the train task. */
+should happen via the train task. */
 
 #define MAX_TRAINS 100
 

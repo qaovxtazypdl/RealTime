@@ -48,6 +48,8 @@ void handle_tr_cmd(int train, int speed) {
 
 void handle_set_track_cmd(char *track) {
   if(!streq(track, "A") || !streq(track, "a")) {
+/* Why are you doing this? All code should be track neutral
+and globals should be avoided unless absolutely necessary. */
     g_is_track_a = 1;
     init_tracka(g_track, g_sensors);
     printf(COM2, "Setting track to A");
@@ -120,6 +122,7 @@ void handle_goto_cmd(int num, char *dst, int offset_mm) {
     return;
   }
 
+/* All variable declarations should be at the top of the function */
   struct position posn;
   train_get_position(td, &posn);
 

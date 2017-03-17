@@ -13,7 +13,28 @@ static int current_debug_line = 40;
 
 #define DURATION_FOREVER 0x0fffffff
 
-inline unsigned int isqrt(unsigned int x){unsigned int a,b,c;a=x;b=0;c=1<<30;while(c>a)c>>=2;while(c!=0){if(a>=b+c){a-=b+c;b+=c<<1;}b>>=1;c>>=2;}return b;}
+/* I am going to pretend I didn't see this. */
+
+inline unsigned int isqrt(unsigned int x){
+  unsigned int a,b,c;
+  a=x;
+  b=0;
+  c=1<<30;
+  while(c>a)
+    c>>=2;
+  while(c!=0){
+    if(a>=b+c){
+      a-=b+c;
+      b+=c<<1;
+    }
+    b>>=1;
+    c>>=2;
+  }
+  return b;
+}
+
+/* Make these macros and move them into math.h */
+
 inline int min(int a, int b) {
   return a > b ? b : a;
 }
@@ -21,6 +42,7 @@ inline int max(int a, int b) {
   return a < b ? b : a;
 }
 
+/* I prefer defining enums which are only used inside of a single struct inline */
 enum travel_method {
   SHORT_MOVE,
   LONG_MOVE,
@@ -38,6 +60,13 @@ struct movement {
   int acceleration_update_time;
   int duration;
 };
+
+/* Train state was put on the stack of the train task for a reason.  I
+   should be able to tell which aspect of train state each funciton
+   call modifies from train() (and it should be as small as possible).
+   Massive structs like this are generally a bad idea unless they
+   represent something which is truly opaque and manipulated
+   atomically.  */
 
 struct train_state {
   // location and dynamics
@@ -67,11 +96,13 @@ struct train_state {
   int dist_to_next_sens;
 };
 
+/* Make all of the functions below which are not part of the API static.  */
 void update_position_display(struct train_state *state) {
   printf(COM2,
     "%s%m%strain %d position %d mm past sensor %d\n\r%s",
     SAVE_CURSOR,
-    (int[]){0, 39},
+    /* Avoid magic numbers, define this as a macro and move this function into console.c */
+    (int[]){0, 39}, 
     CLEAR_LINE,
     state->train_num,
     state->position.offset, state->position.node->num,
@@ -101,7 +132,24 @@ void update_sensor_display(struct train_state *state, int delta_t, int delta_d) 
   );
 }
 
+/* General comment about functions: */
+
+/* Keep function names in shared code concise, avoid prefixing things
+   with 'get'.  'distance_to' might be a good option in this case. If
+   necessary add a comment at the top of the function describing what
+   it does.  If your function does something other than return 0 on
+   success, document this explicitly. Make all of the pointers to
+   things which are not modified, const (I need to start doing this
+   too) so it is clear which arguments (if any) get modified. For this
+   function I would write something like 'Returns the path_index + 1
+   and stores distance in the pointer it gets passed'. When possible a
+   function should return the thing of interest rather than modify
+   stack space in the caller unless it is essential to return multiple
+   values. In this case I would just return distance or -1 in the case
+   of failure' */
+
 int get_distance_to_next_node_in_path(struct track_node **path, int path_index, int *distance) {
+/* Don't forget to check if path is NULL. */
   struct track_node *current = path[path_index];
   int direction = 0;
 
@@ -122,6 +170,7 @@ int get_distance_to_next_node_in_path(struct track_node **path, int path_index, 
     case NODE_ENTER:
       direction = DIR_AHEAD;
       break;
+/* case NODE_EXIT is gratuitous here, it is already covered by default */
     case NODE_EXIT:
     default:
       return -1;
@@ -130,14 +179,23 @@ int get_distance_to_next_node_in_path(struct track_node **path, int path_index, 
   return path_index + 1;
 }
 
+/* See above. */
 int get_next_sensor_in_path(struct track_node **path, int path_index, int *segment_distance) {
   int distance = 0;
   int retval = 0;
   *segment_distance = 0;
+
+/* This check isn't useful, if path_index is valid it should not be
+pointing to NULL, if it is invalid (i.e exceeds the length of the
+buffer) then it could point to anything.  Instead check if path itself
+is NULL or *path is NULL (which is equivalent to path[0] == NULL and
+means the path is empty).  */
+
   if (path[path_index] == NULL) {
     return -1;
   }
 
+/* Put declarations at the top. */
   struct track_node *current = path[path_index];
   do {
     retval = get_distance_to_next_node_in_path(path, path_index, &distance);
@@ -153,6 +211,8 @@ int get_next_sensor_in_path(struct track_node **path, int path_index, int *segme
   return path_index;
 }
 
+/* I would prefer to call this path_distance, length usually refers to the size 
+of a buffer in C. */
 int path_length(struct track_node **path) {
   int i = 0;
   int retval = 0;
@@ -166,7 +226,7 @@ int path_length(struct track_node **path) {
 
   return length;
 }
-
+/* It's no*/
 int advance_train_by_sensor(struct track_node **path, int path_index, int *offset, int distance) {
   int next_sensor_path_index = path_index;
   int return_sensor = path_index;
@@ -175,7 +235,19 @@ int advance_train_by_sensor(struct track_node **path, int path_index, int *offse
   *offset = 0;
 
   while (path[next_sensor_path_index] != NULL) {
+
+/* In general, try and delimit lines longer than 80 characters with a
+newline. If the line is slightly over (3-8 chars) and it improves
+readability that's fine. Shorter function names help facilitate this. */
+
     next_sensor_path_index = get_next_sensor_in_path(path, next_sensor_path_index, &segment_distance);
+
+    /* 'distance_advanced + segment_distance > distance' should be
+'(distance_advanced + segment_distance) > distance'. I'm assuming this
+is correct but my tiny brain doesn't have room for precedence
+rules. This applies everywhere, but especially where you use 
+the ternary operator. */
+
     if (next_sensor_path_index < 0 || distance_advanced + segment_distance > distance) {
       *offset = distance - distance_advanced;
       break;
@@ -366,7 +438,7 @@ int update_sensor_prediction(struct train_state *state) {
     state->expected_next_sensor_index = -1;
     state->expected_next_sensor = NULL;
   }
-
+  
   if (state->expected_next_sensor == NULL) {
     state->dist_to_next_sens = 0;
     return -1;
@@ -383,7 +455,7 @@ void update_path(struct train_state *state, struct track_node **new_path, int of
     state->path[i] = *c;
   }
   state->path[i] = NULL;
-
+ 
   current_debug_line = 40;
 
   // if source node has changed from current position,
@@ -425,6 +497,7 @@ void handle_sensors(struct train_state *state, struct track_node **sensors) {
 
       if (
         state->travel_method == LONG_MOVE &&
+/* Don't compare numbers, compare nodes directly. */
         state->position.node->num == state->stop_position.node->num
       ) {
         int distance_until_stop_command = state->stop_position.offset;
@@ -448,6 +521,12 @@ void train_reset(struct train_state *state) {
 
   if (g_is_track_a) {
     // track A : A5
+
+    /* Avoid accessing the track graph by index.  If you must set the
+train to a specific location use lookup_track_node and pass in the
+name to obtain the track_node pointer.  This is expensive, but you
+should not be doing it in critical code anyway. */
+
     state->position.node = &g_track[4];
   } else {
     // track B : A1
@@ -487,7 +566,7 @@ void handle_path_delayed_update(struct train_state *state) {
 void train() {
   int tid;
   struct train_state state;
-
+  
   receive(&tid, &state.train_num, sizeof(state.train_num));
   reply(tid, NULL, 0);
 
@@ -551,9 +630,13 @@ void train_set_path(int tid, struct track_node **path, int len, int offset) {
   send(tid, &msg, path_sz + sizeof(msg.type) + sizeof(msg.offset), NULL, 0);
 }
 
+/* Just call this train_position, the word 'get' is a gratuitious verb that smells of a particular
+   object oriented 'enterprise' language that shall remain nameless ;). */
+
 void train_get_position(int tid, struct position *posn) {
   struct train_command msg;
   msg.type = TRAIN_COMMAND_GET_POSITION;
+
   send(tid, &msg, sizeof(msg.type), posn, sizeof(struct position));
 }
 
