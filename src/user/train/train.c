@@ -68,7 +68,7 @@ struct movement {
    represent something which is truly opaque and manipulated
    atomically.  */
 
-struct train_state {
+struct movement_state {
   // location and dynamics
   int train_num;
   int speed;
@@ -97,7 +97,7 @@ struct train_state {
 };
 
 /* Make all of the functions below which are not part of the API static.  */
-void update_position_display(struct train_state *state) {
+void update_position_display(struct movement_state *state) {
   printf(COM2,
     "%s%m%strain %d position %d mm past sensor %d\n\r%s",
     SAVE_CURSOR,
@@ -110,7 +110,7 @@ void update_position_display(struct train_state *state) {
   );
 }
 
-void update_sensor_display(struct train_state *state, int delta_t, int delta_d) {
+void update_sensor_display(struct movement_state *state, int delta_t, int delta_d) {
   char *accel_state;
   if (state->accel.state == ACCELERATING) {
     accel_state = "ACCEL";
@@ -260,7 +260,7 @@ the ternary operator. */
   return return_sensor;
 }
 
-int get_offset_from_current_position(struct train_state *state) {
+int get_offset_from_current_position(struct movement_state *state) {
   int current_time = get_time();
   if (current_time <= state->accel.acceleration_update_time) {
     return 0;
@@ -289,7 +289,7 @@ int get_offset_from_current_position(struct train_state *state) {
   return d;
 }
 
-void get_position(struct train_state *state, struct position *new_position) {
+void get_position(struct movement_state *state, struct position *new_position) {
   int d = get_offset_from_current_position(state);
 
   if (state->has_path_completed || (state->accel.state == UNIFORM && state->speed == 0)) {
@@ -304,8 +304,7 @@ void get_position(struct train_state *state, struct position *new_position) {
     new_position->offset = new_offset;
   }
 }
-
-void update_acceleration_and_position(struct train_state *state) {
+void update_acceleration_and_position(struct movement_state *state) {
   int current_time = get_time();
   if (current_time < state->accel.acceleration_update_time) {
     return;
@@ -340,8 +339,8 @@ void update_acceleration_and_position(struct train_state *state) {
   }
   state->position.offset += d;
 }
-
-void update_speed(struct train_state *state, int speed, int until) {
+/* Consumes */
+void update_speed(struct movement_state *state, int speed, int until) {
   if (speed != state->speed) {
     int current_time = get_time();
     if (state->speed == 0 && speed > 0) {
@@ -376,7 +375,7 @@ void update_speed(struct train_state *state, int speed, int until) {
 }
 
 // returns -1 if stopping position is behind
-int update_travel_plans(struct train_state *state) {
+int update_travel_plans(struct movement_state *state) {
   int distance = path_length(state->path) - state->position.offset + state->destination_offset;
   if (distance < 0) {
     return -1;
@@ -427,7 +426,7 @@ int update_travel_plans(struct train_state *state) {
   }
 }
 
-int update_sensor_prediction(struct train_state *state) {
+int update_sensor_prediction(struct movement_state *state) {
   int distance = 0;
 
   int next_sensor_index = get_next_sensor_in_path(state->path, state->path_index, &distance);
@@ -448,7 +447,7 @@ int update_sensor_prediction(struct train_state *state) {
   }
 }
 
-void update_path(struct train_state *state, struct track_node **new_path, int offset) {
+void update_path(struct movement_state *state, struct track_node **new_path, int offset) {
   int i;
   struct track_node **c;
   for (i = 0, c = new_path; *c != NULL; c++, i++) {
@@ -476,7 +475,7 @@ void update_path(struct train_state *state, struct track_node **new_path, int of
   update_position_display(state);
 }
 
-void handle_sensors(struct train_state *state, struct track_node **sensors) {
+void handle_sensors(struct movement_state *state, struct track_node **sensors) {
   int i = 0;
   while (sensors != NULL && sensors[i] != NULL) {
     if (sensors[i] == state->expected_next_sensor) {
@@ -510,7 +509,7 @@ void handle_sensors(struct train_state *state, struct track_node **sensors) {
   }
 }
 
-void train_reset(struct train_state *state) {
+void train_reset(struct movement_state *state) {
   int current_time = get_time();
 
   state->speed = 0;
@@ -542,7 +541,7 @@ should not be doing it in critical code anyway. */
   update_position_display(state);
 }
 
-void handle_path_delayed_update(struct train_state *state) {
+void handle_path_delayed_update(struct movement_state *state) {
   if (state->accel.acceleration_update_time + state->accel.duration) {
     update_acceleration_and_position(state);
 
@@ -564,8 +563,18 @@ void handle_path_delayed_update(struct train_state *state) {
 }
 
 void train() {
+ /* These quantities should be authoritative. */ 
   int tid;
-  struct train_state state;
+  enum direction {
+    FORWARD,
+    REVERSE
+  } reverse;
+  int num;
+  int velocity;
+  int acceleration;
+  struct position position;
+  struct track_node **path;
+  struct movement_state state;
   
   receive(&tid, &state.train_num, sizeof(state.train_num));
   reply(tid, NULL, 0);
