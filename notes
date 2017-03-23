@@ -253,29 +253,16 @@ time offset (train) ~ 0.25
 
 todo
 ============
-refactor
-stopping positions not specified using a sensor
-short move robust correctness (sensor adjustment)
+stopping positions at general nodes
+how to determine position after stop / make shit more acc
 
-how to determine position after stop?
+write broken servers
+refactor variables complete
+
 sensor recovery/reset
   how to stop long moves correctly on sensor break
   how to reroute on switch break
 
-rv
-===
-need a way to specify offsets
-reverseable
-
-
-
-
-later
-==============
-getter for current position/get position->offset, and route from there from command line - delete position reset...
-reverse - handle through path graph
-multiple commands without touching train (update posn after stop, check offsets)
-investigate long moves using acceleration mechanics
-investigate more accurate decelerations
+short move robust correctness (sensor adjustment)
 
 
