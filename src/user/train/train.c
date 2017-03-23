@@ -12,6 +12,7 @@
 static int current_debug_line = 40;
 
 #define DURATION_FOREVER 0x0fffffff
+#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 500
 
 /* I am going to pretend I didn't see this. */
 
@@ -40,6 +41,9 @@ inline int min(int a, int b) {
 }
 inline int max(int a, int b) {
   return a < b ? b : a;
+}
+inline int abs(int a) {
+  return a < 0 ? -a : a;
 }
 
 /* I prefer defining enums which are only used inside of a single struct inline */
@@ -94,15 +98,27 @@ struct movement_state {
   struct track_node *expected_next_sensor;
   int expected_next_sensor_index;
   int dist_to_next_sens;
+  enum velocity_state accel_from_last_sensor;
 };
 
 /* Make all of the functions below which are not part of the API static.  */
+void print_broken(char *name) {
+  printf(COM2,
+    "%s%m%sBROKEN: %s\n\r%s",
+    SAVE_CURSOR,
+    (int[]){0, current_debug_line++},
+    CLEAR_LINE,
+    name,
+    RESTORE_CURSOR
+  );
+}
+
 void update_position_display(struct movement_state *state) {
   printf(COM2,
     "%s%m%strain %d position %d mm past sensor %d\n\r%s",
     SAVE_CURSOR,
     /* Avoid magic numbers, define this as a macro and move this function into console.c */
-    (int[]){0, 39}, 
+    (int[]){0, 39},
     CLEAR_LINE,
     state->train_num,
     state->position.offset, state->position.node->num,
@@ -112,21 +128,22 @@ void update_position_display(struct movement_state *state) {
 
 void update_sensor_display(struct movement_state *state, int delta_t, int delta_d) {
   char *accel_state;
-  if (state->accel.state == ACCELERATING) {
+  if (state->accel_from_last_sensor == ACCELERATING) {
     accel_state = "ACCEL";
-  } else if (state->accel.state == DECELERATING) {
+  } else if (state->accel_from_last_sensor == DECELERATING) {
     accel_state = "DECEL";
   } else {
     accel_state = "";
   }
 
   printf(COM2,
-    "%s%m%strain %d ~ sens = %d, delta_t = %d, delta_d = %d mm, %s%s",
+    "%s%m%sTRAIN{%d}\tsens: %s\tdel_t: %d\tdel_d: %d mm\texp_next: %s\t%s%s",
     SAVE_CURSOR,
     (int[]){0, current_debug_line++},
     CLEAR_LINE,
-    state->train_num, state->position.node->num,
+    state->train_num, state->position.node ? state->position.node->name : "Y",
     delta_t, delta_d,
+    state->expected_next_sensor ? state->expected_next_sensor->name : "X",
     accel_state,
     RESTORE_CURSOR
   );
@@ -152,6 +169,7 @@ int get_distance_to_next_node_in_path(struct track_node **path, int path_index, 
 /* Don't forget to check if path is NULL. */
   struct track_node *current = path[path_index];
   int direction = 0;
+  *distance = 0;
 
   if (path_index < 0 || path[path_index] == NULL || path[path_index + 1] == NULL) {
     return -1;
@@ -211,7 +229,7 @@ means the path is empty).  */
   return path_index;
 }
 
-/* I would prefer to call this path_distance, length usually refers to the size 
+/* I would prefer to call this path_distance, length usually refers to the size
 of a buffer in C. */
 int path_length(struct track_node **path) {
   int i = 0;
@@ -245,7 +263,7 @@ readability that's fine. Shorter function names help facilitate this. */
     /* 'distance_advanced + segment_distance > distance' should be
 '(distance_advanced + segment_distance) > distance'. I'm assuming this
 is correct but my tiny brain doesn't have room for precedence
-rules. This applies everywhere, but especially where you use 
+rules. This applies everywhere, but especially where you use
 the ternary operator. */
 
     if (next_sensor_path_index < 0 || distance_advanced + segment_distance > distance) {
@@ -356,6 +374,7 @@ void update_speed(struct movement_state *state, int speed, int until) {
       current_time - state->accel.acceleration_update_time, state->accel.duration
     ) / 100;
     state->accel.state = speed > state->speed ? ACCELERATING : DECELERATING;
+    state->accel_from_last_sensor = speed > state->speed ? ACCELERATING : DECELERATING;
     state->accel.start_velocity = old_velocity;
     // it takes some time for the train to register a speed command.
     state->accel.acceleration_update_time = current_time;
@@ -437,7 +456,7 @@ int update_sensor_prediction(struct movement_state *state) {
     state->expected_next_sensor_index = -1;
     state->expected_next_sensor = NULL;
   }
-  
+
   if (state->expected_next_sensor == NULL) {
     state->dist_to_next_sens = 0;
     return -1;
@@ -454,7 +473,6 @@ void update_path(struct movement_state *state, struct track_node **new_path, int
     state->path[i] = *c;
   }
   state->path[i] = NULL;
- 
   current_debug_line = 40;
 
   // if source node has changed from current position,
@@ -475,24 +493,171 @@ void update_path(struct movement_state *state, struct track_node **new_path, int
   update_position_display(state);
 }
 
+struct possible_broken_node {
+  struct track_node *sensor;
+  struct track_node *broken;
+  int index;
+  int distance;
+};
+
+void _get_broken_switch_next_sensors(struct track_node *node, struct possible_broken_node broken[6], int *length, int d, struct track_node *last_branch) {
+  switch(node->type) {
+    case NODE_BRANCH:
+      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, length, d + node->edge[DIR_STRAIGHT].dist, node);
+      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, length, d + node->edge[DIR_CURVED].dist, node);
+      break;
+    case NODE_MERGE:
+    case NODE_ENTER:
+      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, length, d + node->edge[DIR_AHEAD].dist, last_branch);
+      break;
+    case NODE_SENSOR:
+      if (last_branch != NULL) {
+        broken[*length].sensor = node;
+        broken[*length].broken = last_branch;
+        broken[*length].distance = d;
+        *length = *length + 1;
+      }
+      break;
+    case NODE_EXIT:
+    case NODE_NONE:
+      break;
+  }
+}
+
+// skipped a sensor
+// switch broken (with uncertainty in future switches)
+// normal expected next sensor
+// returns number of sensors gotten
+int get_broken_switch_next_sensors(struct track_node *node, struct possible_broken_node broken[6]) {
+  int length = 0;
+  switch(node->type) {
+    case NODE_BRANCH:
+      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, &length, node->edge[DIR_STRAIGHT].dist, node);
+      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, &length, node->edge[DIR_CURVED].dist, node);
+      break;
+    case NODE_MERGE:
+    case NODE_ENTER:
+    case NODE_SENSOR:
+      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, &length, node->edge[DIR_AHEAD].dist, NULL);
+      break;
+    case NODE_EXIT:
+    case NODE_NONE:
+      break;
+  }
+  broken[length].sensor = NULL;
+  return length;
+}
+
+void get_broken_sensor_next_sensor(struct track_node **path, int path_index, struct possible_broken_node *broken) {
+  int next_dist = 0;
+  int next_sensor_seen = 0;
+  broken->sensor = NULL;
+  broken->distance = 0;
+
+  get_distance_to_next_node_in_path(path, path_index, &next_dist);
+  broken->distance += next_dist;
+  path_index++;
+
+  while(path[path_index] != NULL) {
+    if (path[path_index]->type == NODE_SENSOR) {
+      if (next_sensor_seen) {
+        broken->sensor = path[path_index];
+        broken->index = path_index;
+        break;
+      } else {
+        next_sensor_seen = 1;
+        broken->broken = path[path_index];
+      }
+    }
+
+    get_distance_to_next_node_in_path(path, path_index, &next_dist);
+    broken->distance += next_dist;
+    path_index++;
+  }
+}
+
 void handle_sensors(struct movement_state *state, struct track_node **sensors) {
   int i = 0;
+  if (sensors[0] == NULL) {
+    return;
+  }
+
+  struct possible_broken_node broken_switch[6];
+  struct possible_broken_node broken_sensor;
+
+  get_broken_sensor_next_sensor(state->path, state->path_index, &broken_sensor);
+  int bsw_sens_count = get_broken_switch_next_sensors(state->position.node, broken_switch);
+
+/*
+  printf(COM2, "bsens: %s, bsensdist: %d\n\r",  broken_sensor.sensor == NULL ? "x" : broken_sensor.sensor->name, broken_sensor.distance);
+  int dbg = 0;
+  for (dbg = 0; dbg < bsw_sens_count; dbg++) {
+    printf(COM2, "bsw_i=%d, bsw: %s, bsw_d: %d\n\r", dbg, broken_switch[dbg].sensor->name, broken_switch[dbg].distance);
+  }
+*/
+  int d_offset_from_current_node = get_offset_from_current_position(state) + state->position.offset;
+  int distance_to_attributed_sensor = 0;
+  int attributed_sensor_index = 0;
+  struct track_node *attributed_sensor = NULL;
+
   while (sensors != NULL && sensors[i] != NULL) {
     if (sensors[i] == state->expected_next_sensor) {
+      if (abs(d_offset_from_current_node - state->dist_to_next_sens) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
+        attributed_sensor = sensors[i];
+        attributed_sensor_index = state->expected_next_sensor_index;
+        distance_to_attributed_sensor = state->dist_to_next_sens;
+      }
+    } else if (sensors[i] == broken_sensor.sensor) {
+      if (abs(d_offset_from_current_node - broken_sensor.distance) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
+        // expected sensor was broken!
+        attributed_sensor = sensors[i];
+        attributed_sensor_index = broken_sensor.index;
+        distance_to_attributed_sensor = broken_sensor.distance;
 
+        print_broken(broken_sensor.broken->name);
+      }
+    } else {
+      // check for broken switch and determine exactly which switch was broken
+      int broken_it;
+      for (broken_it = 0; broken_it < bsw_sens_count; broken_it++) {
+        if (
+          sensors[i] == broken_switch[broken_it].sensor &&
+          abs(d_offset_from_current_node - broken_switch[broken_it].distance) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE
+        ) {
+          attributed_sensor = sensors[i];
+          attributed_sensor_index = 0;
+          distance_to_attributed_sensor = broken_switch[broken_it].distance;
+
+// TODO: jzhao - HACK - replace this with nonblocking
+          int len;
+          struct track_node *srcn = attributed_sensor;
+          struct track_node *dstn = state->path[state->path_length - 1];
+          struct track_node *path[MAX_PATH_LEN];
+          len = path_find(srcn, dstn, path);
+          update_path(state, path, state->destination_offset);
+
+          print_broken(broken_switch[broken_it].broken->name);
+          break;
+        }
+      }
+    }
+
+    if (attributed_sensor != NULL) {
       // updates offset to current time offset from previous sensor.
       update_acceleration_and_position(state);
-      int delta_d = state->position.offset - state->dist_to_next_sens;
+      int delta_d = d_offset_from_current_node - distance_to_attributed_sensor;
       int delta_t = delta_d * 100 / state->accel.start_velocity;
 
       // corrects the offset to 0 to the current sensor
-      state->position.node = state->expected_next_sensor;
+      state->position.node = attributed_sensor;
       state->position.offset = 0;
-      state->path_index = state->expected_next_sensor_index;
+      state->path_index = attributed_sensor_index;
 
       update_sensor_prediction(state);
       update_sensor_display(state, delta_t, delta_d);
       update_position_display(state);
+
+      state->accel_from_last_sensor = state->accel.state;
 
       if (
         state->travel_method == LONG_MOVE &&
@@ -537,6 +702,7 @@ should not be doing it in critical code anyway. */
   state->accel.start_velocity = 0;
   state->accel.acceleration_update_time = current_time;
   state->accel.duration = DURATION_FOREVER;
+  state->accel_from_last_sensor = UNIFORM;
 
   update_position_display(state);
 }
@@ -554,16 +720,18 @@ void handle_path_delayed_update(struct movement_state *state) {
       state->expected_next_sensor = NULL;
       state->expected_next_sensor_index = -1;
       state->dist_to_next_sens = 0;
-      state->position.offset = state->destination_offset;
       state->position.node = state->path[state->path_length - 1];
+      state->position.offset = state->destination_offset;
       state->has_path_completed = 1;
+
+      current_debug_line = 40;
     }
     update_position_display(state);
   }
 }
 
 void train() {
- /* These quantities should be authoritative. */ 
+ /* These quantities should be authoritative. */
   int tid;
   enum direction {
     FORWARD,
@@ -575,7 +743,7 @@ void train() {
   struct position position;
   struct track_node **path;
   struct movement_state state;
-  
+
   receive(&tid, &state.train_num, sizeof(state.train_num));
   reply(tid, NULL, 0);
 

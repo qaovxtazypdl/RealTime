@@ -253,13 +253,19 @@ time offset (train) ~ 0.25
 
 todo
 ============
+refactor
+stopping positions not specified using a sensor
 short move robust correctness (sensor adjustment)
+
+how to determine position after stop?
+sensor recovery/reset
+  how to stop long moves correctly on sensor break
+  how to reroute on switch break
 
 rv
 ===
 need a way to specify offsets
 reverseable
-sensor recovery/reset
 
 
 
