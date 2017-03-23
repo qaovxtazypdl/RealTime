@@ -255,10 +255,8 @@ todo
 ============
 stopping positions at general nodes
 canonicalize position to general nodes
+test reverse (related to above)
 how to determine position after stop / make calibrations more acc
-test reverse
-
-refactor variables complete
 
 
 

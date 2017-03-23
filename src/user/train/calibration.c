@@ -13,7 +13,7 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->deceleration = 127;
     calibration->k = 147;
     calibration->speed_change_time_offset = 21;
-    calibration->startup_time = 150;
+    calibration->startup_time = 190;
 
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 12;
@@ -101,7 +101,7 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->acceleration = 143;
     calibration->deceleration = 127;
     calibration->speed_change_time_offset = 28;
-    calibration->startup_time = 135;
+    calibration->startup_time = 175;
     calibration->k = 152;
 
     calibration->speed_to_velocity[0] = 0;

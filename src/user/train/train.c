@@ -106,6 +106,58 @@ struct movement_state {
   enum velocity_state accel_from_last_sensor;
 };
 
+void get_position(struct movement_state *state, struct position *new_position);
+inline void update_current_position(struct movement_state *state, struct position *position) {
+  get_position(state, position);
+}
+inline void update_current_velocity(struct movement_state *state, int *velocity) {
+  int current_time = get_time();
+  int accel;
+
+  if (state->accel.state == UNIFORM) {
+    accel = 0;
+  } else if (state->accel.state == ACCELERATING) {
+    accel = state->calibration.acceleration;
+  } else if (state->accel.state == DECELERATING) {
+    accel = -state->calibration.deceleration;
+  }
+
+  // assumption - time not yet past the current accel update time
+  *velocity = state->accel.start_velocity + accel * min(
+    current_time - state->accel.acceleration_update_time, state->accel.duration
+  ) / 100;
+}
+inline void update_current_acceleration(struct movement_state *state, int *acceleration) {
+  if (state->accel.state == UNIFORM) {
+    *acceleration = 0;
+  } else if (state->accel.state == ACCELERATING) {
+    *acceleration = state->calibration.acceleration;
+  } else if (state->accel.state == DECELERATING) {
+    *acceleration = -state->calibration.deceleration;
+  }
+}
+inline void update_current_path(struct movement_state *state, struct track_node **path) {
+  path = state->path;
+}
+inline void update_current_reverse(struct movement_state *state, enum direction *reverse) {
+  *reverse = state->is_reversed ? REVERSE : FORWARD;
+}
+
+inline void update_current_quantities(
+  struct movement_state *state,
+  enum direction *reverse,
+  struct position *position,
+  int *velocity,
+  int *acceleration,
+  struct track_node **path
+) {
+  update_current_position(state, position);
+  update_current_velocity(state, velocity);
+  update_current_acceleration(state, acceleration);
+  update_current_path(state, path);
+  update_current_reverse(state, reverse);
+}
+
 /* Make all of the functions below which are not part of the API static.  */
 void print_broken(char *name) {
   printf(COM2,
@@ -397,6 +449,20 @@ void update_speed(struct movement_state *state, int speed, int until) {
     state->update_delay_tid = delay_async(state->accel.duration);
   }
 }
+void update_speed_wrap(
+  struct movement_state *state,
+  int speed,
+  int until,
+  struct position *position,
+  int *velocity,
+  int *acceleration
+) {
+  update_speed(state, speed, until);
+
+  update_current_position(state, position);
+  update_current_velocity(state, velocity);
+  update_current_acceleration(state, acceleration);
+}
 
 // returns -1 if stopping position is behind
 int update_travel_plans(struct movement_state *state) {
@@ -493,7 +559,23 @@ void update_path(struct movement_state *state, struct track_node **new_path, int
   update_sensor_prediction(state);
 
   update_sensor_display(state, 0, 0);
-  update_position_display(state);
+}
+void update_path_wrap(
+  struct movement_state *state,
+  struct track_node **new_path,
+  int posn_offset,
+  int dest_offset,
+  struct position *position,
+  int *velocity,
+  int *acceleration,
+  struct track_node **path
+) {
+  update_path(state, new_path, posn_offset, dest_offset);
+
+  update_current_position(state, position);
+  update_current_velocity(state, velocity);
+  update_current_acceleration(state, acceleration);
+  update_current_path(state, path);
 }
 
 struct possible_broken_node {
@@ -502,7 +584,6 @@ struct possible_broken_node {
   int index;
   int distance;
 };
-
 void _get_broken_switch_next_sensors(struct track_node *node, struct possible_broken_node broken[6], int *length, int d, struct track_node *last_branch) {
   switch(node->type) {
     case NODE_BRANCH:
@@ -659,7 +740,6 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
 
       update_sensor_prediction(state);
       update_sensor_display(state, delta_t, delta_d);
-      update_position_display(state);
 
       state->accel_from_last_sensor = state->accel.state;
 
@@ -676,6 +756,19 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
     }
     i++;
   }
+}
+void handle_sensors_wrap(
+  struct movement_state *state,
+  struct track_node **sensors,
+  struct position *position,
+  int *velocity,
+  int *acceleration
+) {
+  handle_sensors(state, sensors);
+
+  update_current_position(state, position);
+  update_current_velocity(state, velocity);
+  update_current_acceleration(state, acceleration);
 }
 
 void train_reset(struct movement_state *state) {
@@ -707,8 +800,6 @@ should not be doing it in critical code anyway. */
   state->accel.acceleration_update_time = current_time;
   state->accel.duration = DURATION_FOREVER;
   state->accel_from_last_sensor = UNIFORM;
-
-  update_position_display(state);
 }
 
 void finish_path(struct movement_state *state) {
@@ -726,7 +817,7 @@ void finish_path(struct movement_state *state) {
   current_debug_line = 40;
 }
 
-void handle_path_delayed_update(struct movement_state *state) {
+void handle_accel_finished(struct movement_state *state) {
   if (state->accel.acceleration_update_time + state->accel.duration) {
     update_acceleration_and_position(state);
 
@@ -734,49 +825,33 @@ void handle_path_delayed_update(struct movement_state *state) {
     if (state->speed == 0 && state->accel.state == UNIFORM) {
       finish_path(state);
     }
-    update_position_display(state);
   }
+}
+void handle_accel_finished_wrap(
+  struct movement_state *state,
+  struct position *position,
+  int *velocity,
+  int *acceleration
+) {
+  handle_accel_finished(state);
+
+  update_current_position(state, position);
+  update_current_velocity(state, velocity);
+  update_current_acceleration(state, acceleration);
 }
 
 void reverse_train(struct movement_state *state) {
+  tr_set_speed(state->train_num, 15);
   state->is_reversed = !state->is_reversed;
   state->position.node = state->position.node->reverse;
   state->position.offset = -1 * state->position.offset + state->calibration.train_length;
-  update_position_display(state);
   update_sensor_display(state, 0, 0);
 }
-//update set speed, and set path to take in thees fixed variables
-
-// bake calls of these into function definitions
-void update_current_quantities(
-  struct movement_state *state,
-  enum direction *reverse,
-  struct position *position,
-  int *velocity,
-  int *acceleration,
-  struct track_node **path
-) {
-  int current_time = get_time();
-
-  *reverse = state->is_reversed ? REVERSE : FORWARD;
-
-  if (state->accel.state == UNIFORM) {
-    *acceleration = 0;
-  } else if (state->accel.state == ACCELERATING) {
-    *acceleration = state->calibration.acceleration;
-  } else if (state->accel.state == DECELERATING) {
-    *acceleration = -state->calibration.deceleration;
-  }
-
-  // assumption - time not yet past the current accel update time
-  *velocity = state->accel.start_velocity + (*acceleration) * min(
-    current_time - state->accel.acceleration_update_time, state->accel.duration
-  ) / 100;
-
-  get_position(state, position);
-  path = state->path;
+void reverse_train_wrap(struct movement_state *state, enum direction *reverse, struct position *position) {
+  reverse_train(state);
+  update_current_position(state, position);
+  update_current_reverse(state, reverse);
 }
-
 
 void train() {
  /* These quantities should be authoritative. */
@@ -808,30 +883,27 @@ void train() {
   int sens_tid = sensor_subscribe();
 
   while(1) {
+    update_position_display(&state);
     receive(&tid, &msg, sizeof(msg));
     update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
 
     if(tid == sens_tid) {
       reply(tid, NULL, 0);
-      handle_sensors(&state, msg.sensors);
-      update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
+      handle_sensors_wrap(&state, msg.sensors, &position, &velocity, &acceleration);
     } else if(tid == state.stop_delay_tid) {
       reply(tid, NULL, 0);
       if (state.stopping_time <= get_time()) {
-        update_speed(&state, 0, 0);
-        update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
+        update_speed_wrap(&state, 0, 0, &position, &velocity, &acceleration);
       }
     } else if (tid == state.update_delay_tid) {
       reply(tid, NULL, 0);
-      handle_path_delayed_update(&state);
-      update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
+      handle_accel_finished_wrap(&state, &position, &velocity, &acceleration);
     } else {
       struct position new_position;
       switch(msg.command.type) {
         case TRAIN_COMMAND_SET_PATH:
           reply(tid, NULL, 0);
-          update_path(&state, msg.command.path, state.position.offset, msg.command.offset);
-          update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
+          update_path_wrap(&state, msg.command.path, state.position.offset, msg.command.offset, &position, &velocity, &acceleration, path);
           break;
         case TRAIN_COMMAND_GET_POSITION:
           get_position(&state, &new_position);
