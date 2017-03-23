@@ -6,6 +6,11 @@
 #include <track.h>
 #include <console.h>
 
+
+#include <switch.h>
+#include <sensors.h>
+
+
 static int trains[MAX_TRAIN] = {0};
 
 void handle_sw_cmd(char *turnout, char *pos) {

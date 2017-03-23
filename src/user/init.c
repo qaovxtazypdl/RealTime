@@ -18,6 +18,7 @@ void initTask() {
   init_clock_server();
   init_io();
   init_sensors();
+  init_switches();
 
   create(1, clock_printer);
   create(1, console_task);

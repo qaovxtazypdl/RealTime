@@ -254,10 +254,13 @@ time offset (train) ~ 0.25
 todo
 ============
 stopping positions at general nodes
-how to determine position after stop / make shit more acc
+canonicalize position to general nodes
+how to determine position after stop / make calibrations more acc
+test reverse
 
-write broken servers
 refactor variables complete
+
+
 
 sensor recovery/reset
   how to stop long moves correctly on sensor break

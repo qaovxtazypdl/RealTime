@@ -3,6 +3,7 @@
 #include <ns.h>
 #include <clock_server.h>
 #include <io.h>
+#include <train_io.h>
 #include <assert.h>
 #include <common/syscall.h>
 #include <track.h>
@@ -13,7 +14,7 @@
 static int relay_td = -1;
 static int courier_td = -1;
 static int notifier_td = -1;
-
+static int broken_sensors_td = -1;
 
 static int process_sensor_data(struct track_node **sensors) {
   char b;
@@ -90,7 +91,6 @@ static void courier() {
 }
 
 static void notifier() {
-  int num;
   int activated;
   struct track_node *sensors[80];
   while(1) {
@@ -115,7 +115,59 @@ int sensor_subscribe() {
   return courier_td;
 }
 
+/*
+  Broken sensors server stuff
+*/
+
+int sensor_register_broken(struct track_node *sensor) {
+  if (broken_sensors_td < 1 || sensor == NULL) return -1;
+  return send(broken_sensors_td, &sensor, sizeof(struct track_node *), NULL, 0);
+}
+
+int sensor_get_broken(struct track_node *sensors[MAX_SENSOR_SIZE]) {
+  if (broken_sensors_td < 1) return -1;
+  struct track_node *ptr = NULL;
+  return send(broken_sensors_td, &ptr, sizeof(struct track_node *), sensors, MAX_SENSOR_SIZE * sizeof(struct track_node *));
+}
+
+void broken_sensors_server() {
+  struct track_node *broken_sensors[MAX_SENSOR_SIZE];
+  int broken_sensor_size = 0;
+  broken_sensors[0] = NULL;
+
+  struct track_node *new_sensor_node = NULL;
+  int tid = -1;
+  int i;
+  while(1) {
+    receive(&tid, &new_sensor_node, sizeof(struct track_node *));
+    if (new_sensor_node == NULL) {
+      // GET
+      reply(tid, broken_sensors, (broken_sensor_size + 1) * sizeof(struct track_node *));
+    } else {
+      // REGISTER
+      int sensor_already_registered = 0;
+
+      // check if already exists
+      for (i = 0; i < broken_sensor_size; i++) {
+        if (new_sensor_node == broken_sensors[i]) {
+          sensor_already_registered = 1;
+          break;
+        }
+      }
+
+      if (!sensor_already_registered) {
+        broken_sensors[broken_sensor_size] = new_sensor_node;
+        broken_sensors[broken_sensor_size + 1] = NULL;
+        broken_sensor_size++;
+      }
+
+      reply(tid, NULL, 0);
+    }
+  }
+}
+
 void init_sensors() {
+  broken_sensors_td = create(1, broken_sensors_server);
   courier_td = create(0, courier);
   notifier_td = create(0, notifier);
   create(1, printer);
