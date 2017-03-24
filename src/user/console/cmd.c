@@ -38,11 +38,6 @@ void handle_sw_cmd(char *turnout, char *pos) {
   }
 }
 
-void handle_rv_cmd(int train) {
-  printf(COM2, "Attempting to reverse train %d\r\n", train);
-  tr_reverse(train);
-}
-
 void handle_tr_cmd(int train, int speed) {
   printf(COM2, "Attempting to start train %d at speed %d\r\n", train, speed);
   tr_set_speed(train, speed);
@@ -86,9 +81,9 @@ void handle_attrib_1_cmd() {
   delay(60);
   handle_create_train_cmd(58);
   delay(60);
-  handle_route_train_cmd(58, "A13", "C6");
-  delay(300);
-  handle_route_train_cmd(71, "A10", "C3");
+  handle_route_train_cmd(71, "A1", "C6");
+  delay(250);
+  handle_route_train_cmd(58, "A1", "C16");
 }
 
 void handle_attrib_2_cmd() {
@@ -97,8 +92,7 @@ void handle_attrib_2_cmd() {
   handle_create_train_cmd(58);
   delay(60);
   handle_route_train_cmd(71, "A1", "C6");
-  delay(300);
-  handle_route_train_cmd(58, "A1", "D11");
+  handle_route_train_cmd(58, "B2", "D11");
 }
 
 void handle_bsens_cmd() {
@@ -193,7 +187,15 @@ void handle_goto_cmd(int num, char *dst, int offset_mm) {
   }
 }
 
+void handle_rv_cmd(int num) {
+  int td = trains[num];
+  if(!td) {
+    printf(COM2, "Train %d does not exist\r\n", num);
+    return;
+  }
 
+  train_test_reverse(td);
+}
 
 void handle_help_cmd() {
   putstr(COM2, "Valid Commands: \r\n\r\n");

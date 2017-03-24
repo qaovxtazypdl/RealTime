@@ -14,7 +14,7 @@
 static int current_debug_line = 40;
 
 #define DURATION_FOREVER 0x0fffffff
-#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 500
+#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 200
 
 /* I am going to pretend I didn't see this. */
 
@@ -926,6 +926,10 @@ void train() {
           get_position(&state, &new_position);
           reply(tid, &new_position, sizeof(struct position));
           break;
+        case TRAIN_COMMAND_REVERSE_TEST:
+          reply(tid, NULL, 0);
+          reverse_train_wrap(&state, &reverse, &position);
+          break;
         default:
           reply(tid, NULL, 0);
           break;
@@ -959,5 +963,12 @@ void train_get_position(int tid, struct position *posn) {
   msg.type = TRAIN_COMMAND_GET_POSITION;
 
   send(tid, &msg, sizeof(msg.type), posn, sizeof(struct position));
+}
+
+void train_test_reverse(int tid) {
+  struct train_command msg;
+  msg.type = TRAIN_COMMAND_REVERSE_TEST;
+
+  send(tid, &msg, sizeof(msg.type), NULL, 0);
 }
 

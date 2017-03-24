@@ -257,10 +257,12 @@ stopping positions at general nodes (?)
 canonicalize position to general nodes (?)
 
 test reverse positioning (related to above)
+make positioning after sensor more consistent with actual location
 
 how to determine position after stop / make calibrations more acc
 stray broken sensor after broken switch
 improve location representation in code
+tighten attribution bounds
 
 
 

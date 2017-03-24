@@ -17,6 +17,7 @@ struct train_command {
   enum train_command_type {
     TRAIN_COMMAND_SET_PATH,
     TRAIN_COMMAND_GET_POSITION,
+    TRAIN_COMMAND_REVERSE_TEST,
     TRAIN_COMMAND_GOTO
   } type;
 
