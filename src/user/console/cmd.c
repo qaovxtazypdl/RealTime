@@ -92,7 +92,7 @@ void handle_attrib_2_cmd() {
   handle_create_train_cmd(58);
   delay(60);
   handle_route_train_cmd(71, "A1", "C6");
-  handle_route_train_cmd(58, "B2", "D11");
+  handle_route_train_cmd(58, "C6", "C16");
 }
 
 void handle_bsens_cmd() {
@@ -132,11 +132,11 @@ void handle_route_train_cmd(int num, char *src, char *dst) {
   }
 
   len = path_find(srcn, dstn, path);
-  train_set_path(td, path, len, 0);
 
   if(!len) {
     printf(COM2, "No route from %s to %s found\n\r", src, dst);
   } else {
+    train_set_path(td, path, len, 0);
     printf(COM2, "Setting route from %s to %s\n\r", src, dst);
   }
 }
@@ -178,11 +178,11 @@ void handle_goto_cmd(int num, char *dst, int offset_mm) {
   }
 
   len = path_find(srcn, dstn, path);
-  train_set_path(td, path, len, offset_mm);
 
   if(!len) {
     printf(COM2, "No route from %s to %s found\n\r", posn.node->name, dst);
   } else {
+    train_set_path(td, path, len, offset_mm);
     printf(COM2, "Setting route from %s to %s\n\r", posn.node->name, dst);
   }
 }

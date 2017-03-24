@@ -253,28 +253,13 @@ time offset (train) ~ 0.25
 
 todo
 ============
-stopping positions at general nodes (?)
-canonicalize position to general nodes (?)
-
-test reverse positioning (related to above)
-make positioning after sensor more consistent with actual location
-
-how to determine position after stop / make calibrations more acc
-stray broken sensor after broken switch
-improve location representation in code
-tighten attribution bounds
-
-
-
-
-
-
-
+update final dispaly/set final offset as final displacement
+calibrate better/tighten attribution bounds
 
 sensor recovery/reset
   how to stop long moves correctly on sensor break
   how to reroute on switch break
 
-short move robust correctness (sensor adjustment)
+bug - stray broken sensor after broken switch (might not be a problem - might just be slow path finding blocking)
 
 
