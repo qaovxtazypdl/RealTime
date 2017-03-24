@@ -181,8 +181,8 @@ void update_position_display(int num, int line, struct position *position) {
     (int[]){0, 38 + line},
     CLEAR_LINE,
     num,
-    position.offset,
-    position.node == NULL ? "X" : position.node->name,
+    position->offset,
+    (position == NULL || position->node == NULL) ? "X" : position->node->name,
     RESTORE_CURSOR
   );
 }
@@ -540,7 +540,7 @@ int update_sensor_prediction(struct movement_state *state) {
   }
 }
 
-void update_path(struct movement_state *state, struct track_node **new_path, int posn_offset, int dest_offset) {
+void update_path(struct movement_state *state, struct track_node **new_path, int posn_offset, int dest_offset, int should_reverse) {
   int i;
   struct track_node **c;
   for (i = 0, c = new_path; *c != NULL; c++, i++) {
@@ -563,6 +563,10 @@ void update_path(struct movement_state *state, struct track_node **new_path, int
   state->destination_offset = dest_offset;
   state->has_path_completed = 0;
 
+  if (should_reverse) {
+    reverse_train(state);
+  }
+
   update_travel_plans(state);
   path_activate(state->path);
   update_sensor_prediction(state);
@@ -574,13 +578,16 @@ void update_path_wrap(
   struct track_node **new_path,
   int posn_offset,
   int dest_offset,
+  int should_reverse,
+  enum direction *reverse,
   struct position *position,
   int *velocity,
   int *acceleration,
   struct track_node **path
 ) {
-  update_path(state, new_path, posn_offset, dest_offset);
+  update_path(state, new_path, posn_offset, dest_offset, should_reverse);
 
+  update_current_reverse(state, reverse);
   update_current_position(state, position);
   update_current_velocity(state, velocity);
   update_current_acceleration(state, acceleration);
@@ -738,7 +745,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
           struct track_node *dstn = state->path[state->path_length - 1];
           struct track_node *path[MAX_PATH_LEN];
           len = path_find(srcn, dstn, path);
-          update_path(state, path, sensor_attribute_offset, state->destination_offset);
+          update_path(state, path, sensor_attribute_offset, state->destination_offset, 0);
 
           struct broken_switch broken_updater;
           broken_updater.node = broken_switch[broken_it].broken;
@@ -829,14 +836,15 @@ should not be doing it in critical code anyway. */
 void finish_path(struct movement_state *state) {
   int delta_d = state->position.offset - (state->dist_to_next_sens + state->destination_offset);
   int delta_t = delta_d * 100 / state->accel.start_velocity;
-  update_sensor_display(state, delta_t, delta_d);
 
   state->expected_next_sensor = NULL;
   state->expected_next_sensor_index = -1;
   state->dist_to_next_sens = 0;
   state->position.node = state->path[state->path_length - 1];
-  state->position.offset = state->destination_offset;
+  state->position.offset = delta_d;
   state->has_path_completed = 1;
+
+  update_sensor_display(state, delta_t, delta_d);
 }
 
 void handle_accel_finished(struct movement_state *state) {
@@ -897,6 +905,7 @@ void train() {
 
   train_reset(&state);
   init_calibration(&state.calibration, state.train_num);
+  update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
 
   union {
     struct track_node *sensors[NUM_SENSORS];
@@ -922,11 +931,24 @@ void train() {
       reply(tid, NULL, 0);
       handle_accel_finished_wrap(&state, &position, &velocity, &acceleration);
     } else {
+      int should_reverse = 0;
       struct position new_position;
       switch(msg.command.type) {
         case TRAIN_COMMAND_SET_PATH:
           reply(tid, NULL, 0);
-          update_path_wrap(&state, msg.command.path, position.offset, msg.command.offset, &position, &velocity, &acceleration, path);
+          should_reverse = 0;
+          update_path_wrap(
+            &state,
+            msg.command.path,
+            position.offset,
+            msg.command.offset,
+            should_reverse,
+            &reverse,
+            &position,
+            &velocity,
+            &acceleration,
+            path
+          );
           break;
         case TRAIN_COMMAND_GET_POSITION:
           get_position(&state, &new_position);

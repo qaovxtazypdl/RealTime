@@ -253,7 +253,8 @@ time offset (train) ~ 0.25
 
 todo
 ============
-update final dispaly/set final offset as final displacement
+isReversed
+
 calibrate better/tighten attribution bounds
 
 sensor recovery/reset
