@@ -8,7 +8,8 @@ struct train_calibration {
 
   int acceleration;
   int deceleration;
-  int k; 
+  int k;
+  int b;
   int speed_change_time_offset;
   int startup_time;
 

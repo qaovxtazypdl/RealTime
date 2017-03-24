@@ -13,3 +13,4 @@ attrib_1
 attrib_2
 bsens
 bsw
+short, int, int

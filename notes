@@ -253,14 +253,16 @@ time offset (train) ~ 0.25
 
 todo
 ============
-isReversed
+bug - next sensor not showing/stop distances are kinda wonky
 
-calibrate better/tighten attribution bounds
+recalibrate acel/decel - tighten attrib bounds
+how to stop long moves correctly on sensor break
+switch break - reroute next path when it stops before the end of path
 
-sensor recovery/reset
-  how to stop long moves correctly on sensor break
-  how to reroute on switch break
-
+sat
+===========
+sensor error recovery/reset (lost trains - failed to attrib?)
+reroute on switch break integration
 bug - stray broken sensor after broken switch (might not be a problem - might just be slow path finding blocking)
 
 

@@ -197,6 +197,12 @@ void handle_rv_cmd(int num) {
   train_test_reverse(td);
 }
 
+void handle_short_cmd(int train, int ticks) {
+  tr_set_speed(train, 14);
+  delay(ticks);
+  tr_set_speed(train, 0);
+}
+
 void handle_help_cmd() {
   putstr(COM2, "Valid Commands: \r\n\r\n");
   printf(COM2, "\ttr <train number> <speed> - Sets the speed of the train\r\n");
