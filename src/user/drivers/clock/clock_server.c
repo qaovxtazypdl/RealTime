@@ -83,31 +83,27 @@ static void clock_server() {
     }
   }
 }
-/* A courier which relays delay requests and notifies the parents when it is done via 
-a send call. */
+
+/* A courier which relays delay requests and notifies the parents when it is done via a send call. */
 
 static void courier() {
   int td;
   int time;
 
-  while(1) {
-    receive(&td, &time, sizeof(time));
-    reply(td, NULL, 0);
-    delay(time);
-    send(td, &time, sizeof(time), NULL, 0);
-  }
+  receive(&td, &time, sizeof(time));
+  reply(td, NULL, 0);
+  delay(time);
+  send(td, &time, sizeof(time), NULL, 0);
 }
 
 static void until_courier() {
   int td;
   int time;
 
-  while(1) {
-    receive(&td, &time, sizeof(time));
-    reply(td, NULL, 0);
-    delay_until(time);
-    send(td, &time, sizeof(time), NULL, 0);
-  }
+  receive(&td, &time, sizeof(time));
+  reply(td, NULL, 0);
+  delay_until(time);
+  send(td, &time, sizeof(time), NULL, 0);
 }
 
 /* API 
@@ -155,39 +151,18 @@ int get_time() {
     the interval has passed. The message ultimately delivered contains
     the delay which was originally passed into the async call. */
 
-/* FIXME this implementation doesn't work if the same task makes concurrent delay requests. */
-
 int delay_async(int time) {
-  int i;
-  int td = my_tid();
-  static couriers[MAX_TASKS] = {0};
+  int td;
 
-  if(couriers[0] == 0)
-    for (i = 0; i < MAX_TASKS; i++)
-      couriers[i] = -1;
-
-  if(couriers[td] == -1) {
-    couriers[td] = create(0, courier); //FIXME (magic priority)
-  }
-
-  send(couriers[td], &time, sizeof(time), NULL, 0);
-  return couriers[td];
+  td = create(0, courier);
+  send(td, &time, sizeof(time), NULL, 0);
+  return td;
 }
 
-
 int delay_until_async(int time) {
-  int i;
-  int td = my_tid();
-  static couriers[MAX_TASKS] = {0};
+  int td;
 
-  if(couriers[0] == 0)
-    for (i = 0; i < MAX_TASKS; i++)
-      couriers[i] = -1;
-
-  if(couriers[td] == -1) {
-    couriers[td] = create(0, until_courier); //FIXME (magic priority)
-  }
-
-  send(couriers[td], &time, sizeof(time), NULL, 0);
-  return couriers[td];
+  td = create(0, until_courier); //FIXME (magic priority)
+  send(td, &time, sizeof(time), NULL, 0);
+  return td;
 }

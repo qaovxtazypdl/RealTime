@@ -1,6 +1,8 @@
+
 #include <common/bwio.h>
 #include <common/syscall.h>
 #include <dbg.h>
+#include <task.h>
 
 /* Do not call this directly, use the PRINT_REG macro */
 
@@ -111,3 +113,16 @@ void dbg_trigger_timer3_int() {
   *((int*)(VIC2_BASE + VIC_SOFTINT_OFFSET)) = 0x80000;
 }
 
+
+void dbg_print_task(task_t *t) {
+  dbgt("=================================================================================");
+  dbgt("td: %d\nptd: %d\nstart: %x\nsp: %x\npriority: %d\nstate: %d\n",
+       t->td,
+       t->ptd,
+       t->cpu_state->pc,
+       t->cpu_state->sp,
+       t->priority,
+       t->state);
+  DBG_DUMP_PROC_STATE(t->cpu_state, "TD");
+  dbgt("=================================================================================");
+}
