@@ -9,3 +9,7 @@ path, string, string
 create_train, int
 route_train, int, string, string
 goto, int, string, int
+attrib_1
+attrib_2
+bsens
+bsw

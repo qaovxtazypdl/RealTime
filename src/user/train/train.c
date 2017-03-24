@@ -8,6 +8,8 @@
 #include <routing.h>
 #include <sensors.h>
 #include <clock_server.h>
+#include <track_node.h>
+#include <switch.h>
 
 static int current_debug_line = 40;
 
@@ -582,23 +584,32 @@ struct possible_broken_node {
   struct track_node *sensor;
   struct track_node *broken;
   int index;
+  int switch_direction;
   int distance;
 };
-void _get_broken_switch_next_sensors(struct track_node *node, struct possible_broken_node broken[6], int *length, int d, struct track_node *last_branch) {
+void _get_broken_switch_next_sensors(
+  struct track_node *node,
+  struct possible_broken_node broken[6],
+  int *length,
+  int d,
+  struct track_node *last_branch,
+  int last_branch_direction
+) {
   switch(node->type) {
     case NODE_BRANCH:
-      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, length, d + node->edge[DIR_STRAIGHT].dist, node);
-      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, length, d + node->edge[DIR_CURVED].dist, node);
+      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, length, d + node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
+      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, length, d + node->edge[DIR_CURVED].dist, node, DIR_CURVED);
       break;
     case NODE_MERGE:
     case NODE_ENTER:
-      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, length, d + node->edge[DIR_AHEAD].dist, last_branch);
+      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, length, d + node->edge[DIR_AHEAD].dist, last_branch, last_branch_direction);
       break;
     case NODE_SENSOR:
       if (last_branch != NULL) {
         broken[*length].sensor = node;
         broken[*length].broken = last_branch;
         broken[*length].distance = d;
+        broken[*length].switch_direction = last_branch_direction;
         *length = *length + 1;
       }
       break;
@@ -616,13 +627,13 @@ int get_broken_switch_next_sensors(struct track_node *node, struct possible_brok
   int length = 0;
   switch(node->type) {
     case NODE_BRANCH:
-      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, &length, node->edge[DIR_STRAIGHT].dist, node);
-      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, &length, node->edge[DIR_CURVED].dist, node);
+      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, &length, node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
+      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, &length, node->edge[DIR_CURVED].dist, node, DIR_CURVED);
       break;
     case NODE_MERGE:
     case NODE_ENTER:
     case NODE_SENSOR:
-      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, &length, node->edge[DIR_AHEAD].dist, NULL);
+      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, &length, node->edge[DIR_AHEAD].dist, NULL, DIR_STRAIGHT);
       break;
     case NODE_EXIT:
     case NODE_NONE:
@@ -699,6 +710,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
         attributed_sensor_index = broken_sensor.index;
         distance_to_attributed_sensor = broken_sensor.distance;
 
+        sensor_register_broken(broken_sensor.broken);
         print_broken(broken_sensor.broken->name);
       }
     } else {
@@ -721,6 +733,11 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
           len = path_find(srcn, dstn, path);
           update_path(state, path, sensor_attribute_offset, state->destination_offset);
 
+          struct broken_switch broken_updater;
+          broken_updater.node = broken_switch[broken_it].broken;
+          broken_updater.position = broken_switch[broken_it].switch_direction;
+
+          switch_register_broken(&broken_updater);
           print_broken(broken_switch[broken_it].broken->name);
           break;
         }

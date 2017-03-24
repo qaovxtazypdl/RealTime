@@ -253,10 +253,19 @@ time offset (train) ~ 0.25
 
 todo
 ============
-stopping positions at general nodes
-canonicalize position to general nodes
-test reverse (related to above)
+stopping positions at general nodes (?)
+canonicalize position to general nodes (?)
+
+test reverse positioning (related to above)
+
 how to determine position after stop / make calibrations more acc
+stray broken sensor after broken switch
+improve location representation in code
+
+
+
+
+
 
 
 

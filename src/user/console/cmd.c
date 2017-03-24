@@ -5,8 +5,6 @@
 #include <io.h>
 #include <track.h>
 #include <console.h>
-
-
 #include <switch.h>
 #include <sensors.h>
 
@@ -81,6 +79,46 @@ void handle_path_cmd(char *src, char *dst) {
 
 void handle_q_cmd() {
   SYSCALL(SYSCALL_TERMINATE); /* FIXME wrap this */
+}
+
+void handle_attrib_1_cmd() {
+  handle_create_train_cmd(71);
+  delay(60);
+  handle_create_train_cmd(58);
+  delay(60);
+  handle_route_train_cmd(58, "A13", "C6");
+  delay(300);
+  handle_route_train_cmd(71, "A10", "C3");
+}
+
+void handle_attrib_2_cmd() {
+  handle_create_train_cmd(71);
+  delay(60);
+  handle_create_train_cmd(58);
+  delay(60);
+  handle_route_train_cmd(71, "A1", "C6");
+  delay(300);
+  handle_route_train_cmd(58, "A1", "D11");
+}
+
+void handle_bsens_cmd() {
+  struct track_node *sensors[MAX_SENSOR_SIZE];
+  sensor_get_broken(sensors);
+
+  int i = 0;
+  while (sensors[i] != NULL) {
+    printf(COM2, "BSENS: %s\n\r", sensors[i]->name);
+  }
+}
+
+void handle_bsw_cmd() {
+  struct broken_switch switches[MAX_SWITCH_SIZE];
+  switch_get_broken(switches);
+
+  int i = 0;
+  while (switches[i].node != NULL) {
+    printf(COM2, "BSW: %s, CURVED? %d\n\r", switches[i].node->name, switches[i].position);
+  }
 }
 
 void handle_route_train_cmd(int num, char *src, char *dst) {
