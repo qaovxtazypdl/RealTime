@@ -3,6 +3,7 @@
 #include <common/bwio.h>
 #include <common/bwio.h>
 #include <common/ts7200.h>
+#include <task.h>
 
 #ifdef DEBUG 
 #define dbg_noprefix(arg0, ...) \
@@ -104,6 +105,7 @@ int dbg_start_timer();
 int dbg_timer_val();
 void dbg_print_syscall(int comment);
 void dbg_print_bytes(char *start, int len);
+void dbg_print_task(task_t *t);
 
 #define pnum(num) \
     char numloc[12]; \

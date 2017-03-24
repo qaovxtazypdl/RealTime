@@ -114,6 +114,7 @@ int main() {
   init_ipc(); 
   init_icu();
   initialize_timer(10);
+  init_task();
 
   /* Machine specific optimizations */
   ts7200_enable_caches();
@@ -125,3 +126,4 @@ int main() {
   bwprintln("BACK IN MAIN, RETURNING TO REDBOOT");
   return 0;
 }
+
