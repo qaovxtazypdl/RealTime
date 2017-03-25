@@ -253,15 +253,15 @@ time offset (train) ~ 0.25
 
 todo
 ============
-switch break - reroute next path when it stops before the end of path
-
-debug long move stop (two sensors)
+switch/sensor break - test
 debug stopping distance discrepancy (timing? recalibrate?)
 recalibrate acel/decel - tighten attrib bounds
 
+//// 1h
 rely on timestamps
 refactor into new file
 
+//// 1h
 handle stopping after the same sensor it is currently on...
 
 sat

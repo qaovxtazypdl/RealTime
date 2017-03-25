@@ -15,7 +15,7 @@ static int current_debug_line = 40;
 static int num_trains_initialized = 0;
 
 #define TIME_FOREVER 0x0fffffff
-#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 333
+#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 214748364
 
 /* I am going to pretend I didn't see this. */
 
@@ -91,6 +91,7 @@ struct movement_state {
   int has_path_completed;
   struct track_node *path[MAX_PATH_LEN];
   struct position position;
+  struct position position_definite_if_different;
   int path_length;
   int path_index;
   int destination_offset;
@@ -111,6 +112,8 @@ struct movement_state {
   int dist_to_next_sens;
   enum velocity_state accel_from_last_sensor;
   int last_sensor_time;
+  struct track_node *expected_next_sensor_definite_if_different;
+  int dist_to_next_sens_definite_if_different;
 };
 
 void get_position(struct movement_state *state, struct position *new_position);
@@ -626,6 +629,10 @@ void update_path(struct movement_state *state, struct track_node **new_path, int
 
   if (should_reverse) {
     reverse_train(state);
+    state->expected_next_sensor_definite_if_different = NULL;
+    state->position_definite_if_different.node = NULL;
+    state->position_definite_if_different.offset = 0;
+    state->dist_to_next_sens_definite_if_different = 0;
   }
 
   update_travel_plans(state);
@@ -773,8 +780,19 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
   struct possible_broken_node broken_switch[6];
   struct possible_broken_node broken_sensor;
 
-  get_broken_sensor_next_sensor(state->path, state->path_index, &broken_sensor);
-  int bsw_sens_count = get_broken_switch_next_sensors(state->position.node, state->expected_next_sensor, broken_switch);
+  if (state->position_definite_if_different.node != NULL) {
+    broken_sensor.broken = state->expected_next_sensor_definite_if_different;
+    broken_sensor.sensor = state->expected_next_sensor;
+    broken_sensor.index = state->path_index;
+    broken_sensor.distance = state->dist_to_next_sens + state->dist_to_next_sens_definite_if_different;
+  } else {
+    get_broken_sensor_next_sensor(state->path, state->path_index, &broken_sensor);
+  }
+  int bsw_sens_count = get_broken_switch_next_sensors(
+    state->position_definite_if_different.node != NULL ? state->position_definite_if_different.node : state->position.node,
+    state->expected_next_sensor_definite_if_different != NULL ? state->expected_next_sensor_definite_if_different : state->expected_next_sensor,
+    broken_switch
+  );
 
 /*
   printf(COM2, "bsens: %s, bsensdist: %d\n\r",  broken_sensor.sensor == NULL ? "x" : broken_sensor.sensor->name, broken_sensor.distance);
@@ -784,24 +802,26 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
   }
 */
   int d_offset_from_current_node = get_offset_from_current_position(state) + state->position.offset;
-  int distance_to_attributed_sensor = 0;
+  int d_offset_from_prev_sensor_if_different = get_offset_from_current_position(state) +
+    state->position_definite_if_different.node != NULL ? state->position_definite_if_different.offset : state->position.offset;
+  int delta_d = 0;
   int attributed_sensor_index = 0;
   struct track_node *attributed_sensor = NULL;
   int sensor_attribute_offset = state->is_reversed ? state->calibration.reverse_offset : state->calibration.forward_offset;
 
   while (sensors != NULL && sensors[i] != NULL) {
     if (sensors[i] == state->expected_next_sensor) {
-      if (abs(d_offset_from_current_node - (state->dist_to_next_sens + sensor_attribute_offset)) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
+      delta_d = d_offset_from_current_node - (state->dist_to_next_sens + sensor_attribute_offset);
+      if (abs(delta_d) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
         attributed_sensor = sensors[i];
         attributed_sensor_index = state->expected_next_sensor_index;
-        distance_to_attributed_sensor = state->dist_to_next_sens;
       }
     } else if (sensors[i] == broken_sensor.sensor) {
-      if (abs(d_offset_from_current_node - (broken_sensor.distance + sensor_attribute_offset)) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
+      delta_d = d_offset_from_prev_sensor_if_different - (broken_sensor.distance + sensor_attribute_offset);
+      if (abs(delta_d) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE) {
         // expected sensor was broken!
         attributed_sensor = sensors[i];
         attributed_sensor_index = broken_sensor.index;
-        distance_to_attributed_sensor = broken_sensor.distance;
 
         sensor_register_broken(broken_sensor.broken);
         print_broken(broken_sensor.broken->name);
@@ -810,13 +830,13 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
       // check for broken switch and determine exactly which switch was broken
       int broken_it;
       for (broken_it = 0; broken_it < bsw_sens_count; broken_it++) {
+        delta_d = d_offset_from_prev_sensor_if_different - (broken_switch[broken_it].distance + sensor_attribute_offset);
         if (
           sensors[i] == broken_switch[broken_it].sensor &&
-          abs(d_offset_from_current_node - (broken_switch[broken_it].distance + sensor_attribute_offset)) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE
+          abs(delta_d) < SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE
         ) {
           attributed_sensor = sensors[i];
           attributed_sensor_index = 0;
-          distance_to_attributed_sensor = broken_switch[broken_it].distance;
 
 // TODO: jzhao - HACK - replace this with nonblocking
           int len;
@@ -841,7 +861,6 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
       // updates offset to current time offset from previous sensor.
       int original_offset = state->position.offset;
       update_acceleration_and_position(state);
-      int delta_d = d_offset_from_current_node - (distance_to_attributed_sensor + sensor_attribute_offset);
       int delta_t = delta_d * 100 / state->accel.start_velocity;
 
       // adaptive velocity calibration if we're going at uniform velocity
@@ -886,6 +905,12 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
         state->bsens_stop_delay_tid = delay_until_async(state->stopping_time);
         state->bsens_timeout_active = 1;
       }
+
+      // get rid of definite sensors
+      state->position_definite_if_different.node = NULL;
+      state->position_definite_if_different.offset = 0;
+      state->expected_next_sensor_definite_if_different = NULL;
+      state->dist_to_next_sens_definite_if_different = 0;
       break;
     }
     i++;
@@ -929,6 +954,10 @@ should not be doing it in critical code anyway. */
     state->position.node = &g_track[0];
   }
   state->position.offset = 0;
+  state->expected_next_sensor_definite_if_different = NULL;
+  state->position_definite_if_different.node = NULL;
+  state->position_definite_if_different.offset = 0;
+  state->dist_to_next_sens_definite_if_different = 0;
 
   state->accel.state = UNIFORM;
   state->accel.start_velocity = 0;
@@ -941,11 +970,18 @@ void finish_path(struct movement_state *state) {
   int delta_d = state->position.offset - (state->dist_to_next_sens + state->destination_offset);
   int delta_t = delta_d * 100 / state->accel.start_velocity;
 
+  if (state->path[state->path_length - 1] != state->position.node) {
+    state->expected_next_sensor_definite_if_different = state->expected_next_sensor;
+    state->position_definite_if_different.node = state->position.node;
+    state->position_definite_if_different.offset = state->position.offset;
+    state->dist_to_next_sens_definite_if_different = state->dist_to_next_sens;
+
+    state->position.node = state->path[state->path_length - 1];
+    state->position.offset = delta_d + state->destination_offset;
+  }
   state->expected_next_sensor = NULL;
   state->expected_next_sensor_index = -1;
   state->dist_to_next_sens = 0;
-  state->position.node = state->path[state->path_length - 1];
-  state->position.offset = state->position.offset - state->dist_to_next_sens;
   state->has_path_completed = 1;
   state->bsens_timeout_active = 0;
 
@@ -1029,18 +1065,18 @@ void train() {
       handle_sensors_wrap(&state, msg.sensors, &position, &velocity, &acceleration);
     } else if(tid == state.stop_delay_tid || tid == state.bsens_stop_delay_tid) {
       reply(tid, NULL, 0);
-      if (
-        state.stopping_time <= get_time() ||
-        (state.bsens_timeout_active && state.bsens_stopping_time <= get_time())
-      ) {
-        update_speed_wrap(&state, 0, 0, &position, &velocity, &acceleration);
-      }
-
       // TODO: remove debug
       if (state.stopping_time <= get_time()) {
         printf(COM2, "@STOP_NORM@");
       } else if (state.bsens_timeout_active && state.bsens_stopping_time <= get_time()) {
         printf(COM2, "@STOP_BSEN@");
+      }
+
+      if (
+        state.stopping_time <= get_time() ||
+        (state.bsens_timeout_active && state.bsens_stopping_time <= get_time())
+      ) {
+        update_speed_wrap(&state, 0, 0, &position, &velocity, &acceleration);
       }
     } else if (tid == state.update_delay_tid) {
       reply(tid, NULL, 0);
