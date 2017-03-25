@@ -253,11 +253,16 @@ time offset (train) ~ 0.25
 
 todo
 ============
-bug - next sensor not showing/stop distances are kinda wonky
-
-recalibrate acel/decel - tighten attrib bounds
-how to stop long moves correctly on sensor break
 switch break - reroute next path when it stops before the end of path
+
+debug long move stop (two sensors)
+debug stopping distance discrepancy (timing? recalibrate?)
+recalibrate acel/decel - tighten attrib bounds
+
+rely on timestamps
+refactor into new file
+
+handle stopping after the same sensor it is currently on...
 
 sat
 ===========

@@ -14,7 +14,7 @@
 static int current_debug_line = 40;
 static int num_trains_initialized = 0;
 
-#define DURATION_FOREVER 0x0fffffff
+#define TIME_FOREVER 0x0fffffff
 #define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 333
 
 /* I am going to pretend I didn't see this. */
@@ -96,9 +96,12 @@ struct movement_state {
   int destination_offset;
 
   // stopping
-  int stopping_time;
-  struct position stop_position;
-  int stop_delay_tid;
+  int stopping_time, bsens_stopping_time;
+  struct position stop_position, bsens_stop_position;
+  int stop_delay_tid, bsens_stop_delay_tid;
+  int bsens_timeout_active;
+
+  // updating
   int update_delay_tid;
   enum travel_method travel_method;
 
@@ -270,6 +273,32 @@ int get_distance_to_next_node_in_path(struct track_node **path, int path_index, 
 }
 
 /* See above. */
+int get_prev_sensor_in_path(struct track_node **path, int path_index, int *segment_distance) {
+  int distance = 0;
+  int retval = 0;
+  *segment_distance = 0;
+
+  if (path[path_index] == NULL || path[path_index] <= 0) {
+    return -1;
+  }
+
+/* Put declarations at the top. */
+  struct track_node *current = path[path_index];
+  do {
+    path_index--;
+    current = path[path_index];
+    retval = get_distance_to_next_node_in_path(path, path_index, &distance);
+    if (retval < 0) {
+      // no more paths
+      return -1;
+    }
+    *segment_distance += distance;
+  } while (path_index > 0 && current->type != NODE_SENSOR);
+
+  return path_index;
+}
+
+/* See above. */
 int get_next_sensor_in_path(struct track_node **path, int path_index, int *segment_distance) {
   int distance = 0;
   int retval = 0;
@@ -418,7 +447,7 @@ void update_acceleration_and_position(struct movement_state *state) {
     state->accel.state = UNIFORM;
     state->accel.acceleration_update_time = current_time;
     state->accel.start_velocity = v_f;
-    state->accel.duration = DURATION_FOREVER;
+    state->accel.duration = TIME_FOREVER;
   } else {
     int v_f = state->accel.start_velocity + a * min(
       current_time - state->accel.acceleration_update_time, state->accel.duration
@@ -506,7 +535,7 @@ int update_travel_plans(struct movement_state *state) {
     }
 
     state->stopping_time = get_time() + short_move_ticks;
-    printf(COM2, "short move parameters determined: ticks=%d, distance=%d", short_move_ticks, distance);
+    // printf(COM2, "short move parameters determined: ticks=%d, distance=%d", short_move_ticks, distance);
 
     update_speed(state, 14, state->stopping_time);
     return 0;
@@ -525,15 +554,26 @@ int update_travel_plans(struct movement_state *state) {
 
     int stop_offset = 0;
     int stop_index = advance_train_by_sensor(state->path, state->path_index, &stop_offset, distance_before_stop + state->position.offset);
+    stop_offset += sensor_attribute_offset;
     state->stop_position.node = state->path[stop_index];
-    state->stop_position.offset = stop_offset + sensor_attribute_offset;
+    state->stop_position.offset = stop_offset;
+
+    int bsens_stop_offset = 0;
+    int prev_index = get_prev_sensor_in_path(state->path, stop_index, &bsens_stop_offset);
+    bsens_stop_offset += stop_offset;
+    state->bsens_stop_position.node = state->path[prev_index];
+    state->bsens_stop_position.offset = bsens_stop_offset;
 
     // if stop at current node, just stop immediately
+    // TODO - jzhao handle this better
     if (state->position.node->num == state->stop_position.node->num) {
       return -1;
     }
 
-    printf(COM2, "stopping position determined: %d mm past sensor %d\n\r", state->stop_position.offset, state->stop_position.node->num);
+    printf(COM2, "stopping position determined: %d mm past sensor %s (backup %d mm past sensor %s) \n\r",
+      state->stop_position.offset, state->stop_position.node->name,
+      state->bsens_stop_position.offset, state->bsens_stop_position.node->name
+    );
     return 0;
   }
 }
@@ -622,22 +662,36 @@ struct possible_broken_node {
   int switch_direction;
   int distance;
 };
-void _get_broken_switch_next_sensors(
+int _get_broken_switch_next_sensors(
   struct track_node *node,
+  struct track_node *expected_sens,
   struct possible_broken_node broken[6],
   int *length,
   int d,
   struct track_node *last_branch,
   int last_branch_direction
 ) {
+  int start_index, end_index;
+  int brs_result, brc_result;
+  int i;
   switch(node->type) {
     case NODE_BRANCH:
-      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, length, d + node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
-      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, length, d + node->edge[DIR_CURVED].dist, node, DIR_CURVED);
+      start_index = *length;
+      brs_result = _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, expected_sens, broken, length, d + node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
+      brc_result = _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, expected_sens, broken, length, d + node->edge[DIR_CURVED].dist, node, DIR_CURVED);
+      end_index = *length;
+
+      // correct broken branch
+      if (brs_result || brc_result) {
+        for(i = start_index; i < end_index; i++) {
+          broken[*length].broken = node;
+        }
+      }
+      return 0;
       break;
     case NODE_MERGE:
     case NODE_ENTER:
-      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, length, d + node->edge[DIR_AHEAD].dist, last_branch, last_branch_direction);
+      return _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, expected_sens, broken, length, d + node->edge[DIR_AHEAD].dist, last_branch, last_branch_direction);
       break;
     case NODE_SENSOR:
       if (last_branch != NULL) {
@@ -647,28 +701,30 @@ void _get_broken_switch_next_sensors(
         broken[*length].switch_direction = last_branch_direction;
         *length = *length + 1;
       }
+      return node == expected_sens ? 1 : 0;
       break;
     case NODE_EXIT:
     case NODE_NONE:
       break;
   }
+  return 0;
 }
 
 // skipped a sensor
 // switch broken (with uncertainty in future switches)
 // normal expected next sensor
 // returns number of sensors gotten
-int get_broken_switch_next_sensors(struct track_node *node, struct possible_broken_node broken[6]) {
+int get_broken_switch_next_sensors(struct track_node *node, struct track_node *expected_sens, struct possible_broken_node broken[6]) {
   int length = 0;
   switch(node->type) {
     case NODE_BRANCH:
-      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, broken, &length, node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
-      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, broken, &length, node->edge[DIR_CURVED].dist, node, DIR_CURVED);
+      _get_broken_switch_next_sensors(node->edge[DIR_STRAIGHT].dest, expected_sens, broken, &length, node->edge[DIR_STRAIGHT].dist, node, DIR_STRAIGHT);
+      _get_broken_switch_next_sensors(node->edge[DIR_CURVED].dest, expected_sens, broken, &length, node->edge[DIR_CURVED].dist, node, DIR_CURVED);
       break;
     case NODE_MERGE:
     case NODE_ENTER:
     case NODE_SENSOR:
-      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, broken, &length, node->edge[DIR_AHEAD].dist, NULL, DIR_STRAIGHT);
+      _get_broken_switch_next_sensors(node->edge[DIR_AHEAD].dest, expected_sens, broken, &length, node->edge[DIR_AHEAD].dist, NULL, DIR_STRAIGHT);
       break;
     case NODE_EXIT:
     case NODE_NONE:
@@ -718,7 +774,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
   struct possible_broken_node broken_sensor;
 
   get_broken_sensor_next_sensor(state->path, state->path_index, &broken_sensor);
-  int bsw_sens_count = get_broken_switch_next_sensors(state->position.node, broken_switch);
+  int bsw_sens_count = get_broken_switch_next_sensors(state->position.node, state->expected_next_sensor, broken_switch);
 
 /*
   printf(COM2, "bsens: %s, bsensdist: %d\n\r",  broken_sensor.sensor == NULL ? "x" : broken_sensor.sensor->name, broken_sensor.distance);
@@ -813,12 +869,22 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
 
       if (
         state->travel_method == LONG_MOVE &&
-/* Don't compare numbers, compare nodes directly. */
-        state->position.node->num == state->stop_position.node->num
+        state->position.node == state->stop_position.node
       ) {
         int distance_until_stop_command = state->stop_position.offset - state->position.offset;
         state->stopping_time = current_time + distance_until_stop_command * 100 / state->calibration.speed_to_velocity[state->speed];
         state->stop_delay_tid = delay_until_async(state->stopping_time);
+        state->bsens_timeout_active = 0;
+      }
+
+      if (
+        state->travel_method == LONG_MOVE &&
+        state->position.node == state->bsens_stop_position.node
+      ) {
+        int distance_until_stop_command = state->bsens_stop_position.offset - state->position.offset;
+        state->bsens_stopping_time = current_time + distance_until_stop_command * 100 / state->calibration.speed_to_velocity[state->speed];
+        state->bsens_stop_delay_tid = delay_until_async(state->stopping_time);
+        state->bsens_timeout_active = 1;
       }
       break;
     }
@@ -846,6 +912,7 @@ void train_reset(struct movement_state *state) {
   state->is_reversed = 0;
   state->update_delay_tid = -1;
   state->stop_delay_tid = -1;
+  state->bsens_stop_delay_tid = -1;
   state->has_path_completed = 1;
 
   if (g_is_track_a) {
@@ -866,7 +933,7 @@ should not be doing it in critical code anyway. */
   state->accel.state = UNIFORM;
   state->accel.start_velocity = 0;
   state->accel.acceleration_update_time = current_time;
-  state->accel.duration = DURATION_FOREVER;
+  state->accel.duration = TIME_FOREVER;
   state->accel_from_last_sensor = UNIFORM;
 }
 
@@ -880,6 +947,7 @@ void finish_path(struct movement_state *state) {
   state->position.node = state->path[state->path_length - 1];
   state->position.offset = state->position.offset - state->dist_to_next_sens;
   state->has_path_completed = 1;
+  state->bsens_timeout_active = 0;
 
   update_sensor_display(state, delta_t, delta_d);
 }
@@ -959,10 +1027,20 @@ void train() {
     if(tid == sens_tid) {
       reply(tid, NULL, 0);
       handle_sensors_wrap(&state, msg.sensors, &position, &velocity, &acceleration);
-    } else if(tid == state.stop_delay_tid) {
+    } else if(tid == state.stop_delay_tid || tid == state.bsens_stop_delay_tid) {
       reply(tid, NULL, 0);
-      if (state.stopping_time <= get_time()) {
+      if (
+        state.stopping_time <= get_time() ||
+        (state.bsens_timeout_active && state.bsens_stopping_time <= get_time())
+      ) {
         update_speed_wrap(&state, 0, 0, &position, &velocity, &acceleration);
+      }
+
+      // TODO: remove debug
+      if (state.stopping_time <= get_time()) {
+        printf(COM2, "@STOP_NORM@");
+      } else if (state.bsens_timeout_active && state.bsens_stopping_time <= get_time()) {
+        printf(COM2, "@STOP_BSEN@");
       }
     } else if (tid == state.update_delay_tid) {
       reply(tid, NULL, 0);
