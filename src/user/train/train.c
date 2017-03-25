@@ -214,12 +214,16 @@ void update_sensor_display(struct movement_state *state, int delta_t, int delta_
     accel_state = "";
   }
 
+  int current_time = get_time();
+
   printf(COM2,
-    "%s%m%sTRAIN{%d}\tsens: %s\tdel_t: %d\tdel_d: %d mm\texp_next: %s\t%s%s",
+    "%s%m%sTRAIN{%d}\tt: %d\tsens: %s\tdel_t: %d\tdel_d: %d mm\texp_next: %s\t%s%s",
     SAVE_CURSOR,
     (int[]){0, current_debug_line++},
     CLEAR_LINE,
-    state->train_num, state->position.node ? state->position.node->name : "Y",
+    state->train_num,
+    current_time,
+    state->position.node ? state->position.node->name : "Y",
     delta_t, delta_d,
     state->expected_next_sensor ? state->expected_next_sensor->name : "X",
     accel_state,
@@ -803,7 +807,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
 */
   int d_offset_from_current_node = get_offset_from_current_position(state) + state->position.offset;
   int d_offset_from_prev_sensor_if_different = get_offset_from_current_position(state) +
-    state->position_definite_if_different.node != NULL ? state->position_definite_if_different.offset : state->position.offset;
+    (state->position_definite_if_different.node != NULL ? state->position_definite_if_different.offset : state->position.offset);
   int delta_d = 0;
   int attributed_sensor_index = 0;
   struct track_node *attributed_sensor = NULL;
@@ -863,6 +867,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
       update_acceleration_and_position(state);
       int delta_t = delta_d * 100 / state->accel.start_velocity;
 
+/* TODO: REENABLE
       // adaptive velocity calibration if we're going at uniform velocity
       if (state->accel_from_last_sensor == UNIFORM) {
         int actual_velocity = (state->dist_to_next_sens - original_offset) * 100 / (current_time - state->last_sensor_time);
@@ -875,6 +880,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
           state->calibration.speed_to_velocity[state->speed] = (0.8 * expected_velocity) + (0.2 * actual_velocity);
         }
       }
+*/
 
       // corrects the offset to 0 to the current sensor
       state->position.node = attributed_sensor;
@@ -902,7 +908,7 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
       ) {
         int distance_until_stop_command = state->bsens_stop_position.offset - state->position.offset;
         state->bsens_stopping_time = current_time + distance_until_stop_command * 100 / state->calibration.speed_to_velocity[state->speed];
-        state->bsens_stop_delay_tid = delay_until_async(state->stopping_time);
+        state->bsens_stop_delay_tid = delay_until_async(state->bsens_stopping_time);
         state->bsens_timeout_active = 1;
       }
 
@@ -1065,13 +1071,6 @@ void train() {
       handle_sensors_wrap(&state, msg.sensors, &position, &velocity, &acceleration);
     } else if(tid == state.stop_delay_tid || tid == state.bsens_stop_delay_tid) {
       reply(tid, NULL, 0);
-      // TODO: remove debug
-      if (state.stopping_time <= get_time()) {
-        printf(COM2, "@STOP_NORM@");
-      } else if (state.bsens_timeout_active && state.bsens_stopping_time <= get_time()) {
-        printf(COM2, "@STOP_BSEN@");
-      }
-
       if (
         state.stopping_time <= get_time() ||
         (state.bsens_timeout_active && state.bsens_stopping_time <= get_time())

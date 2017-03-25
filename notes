@@ -253,7 +253,10 @@ time offset (train) ~ 0.25
 
 todo
 ============
-switch/sensor break - test
+massive offset after hitting a broken switch?
+switch/sensor break - test stopping on them
+
+///
 debug stopping distance discrepancy (timing? recalibrate?)
 recalibrate acel/decel - tighten attrib bounds
 
