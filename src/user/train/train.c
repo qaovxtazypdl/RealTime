@@ -214,8 +214,7 @@ void update_sensor_display(struct movement_state *state, int delta_t, int delta_
     accel_state = "";
   }
 
-  int current_time = get_time();
-
+  int current_time = get_time() % 10000;
   printf(COM2,
     "%s%m%sTRAIN{%d}\tt: %d\tsens: %s\tdel_t: %d\tdel_d: %d mm\texp_next: %s\t%s%s",
     SAVE_CURSOR,
@@ -388,6 +387,9 @@ the ternary operator. */
 
 int get_offset_from_current_position(struct movement_state *state) {
   int current_time = get_time();
+  if (state->has_path_completed || (state->accel.state == UNIFORM && state->speed == 0)) {
+    return 0;
+  }
   if (current_time <= state->accel.acceleration_update_time) {
     return 0;
   }
@@ -417,18 +419,8 @@ int get_offset_from_current_position(struct movement_state *state) {
 
 void get_position(struct movement_state *state, struct position *new_position) {
   int d = get_offset_from_current_position(state);
-
-  if (state->has_path_completed || (state->accel.state == UNIFORM && state->speed == 0)) {
-    // train has already stopped moving - path is stale
-    new_position->node = state->position.node;
-    new_position->offset = state->position.offset;
-  } else {
-    // train moving -> path is non stale
-    int new_offset = 0;
-    int stop_index = advance_train_by_sensor(state->path, state->path_index, &new_offset, d + state->position.offset);
-    new_position->node = state->path[stop_index];
-    new_position->offset = new_offset;
-  }
+  new_position->node = state->position.node;
+  new_position->offset = d + state->position.offset;
 }
 void update_acceleration_and_position(struct movement_state *state) {
   int current_time = get_time();
@@ -867,7 +859,6 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
       update_acceleration_and_position(state);
       int delta_t = delta_d * 100 / state->accel.start_velocity;
 
-/* TODO: REENABLE
       // adaptive velocity calibration if we're going at uniform velocity
       if (state->accel_from_last_sensor == UNIFORM) {
         int actual_velocity = (state->dist_to_next_sens - original_offset) * 100 / (current_time - state->last_sensor_time);
@@ -878,9 +869,9 @@ void handle_sensors(struct movement_state *state, struct track_node **sensors) {
           (expected_velocity >= actual_velocity && ((expected_velocity - actual_velocity) * 5 < expected_velocity))
         ) {
           state->calibration.speed_to_velocity[state->speed] = (0.8 * expected_velocity) + (0.2 * actual_velocity);
+          state->accel.start_velocity = state->calibration.speed_to_velocity[state->speed];
         }
       }
-*/
 
       // corrects the offset to 0 to the current sensor
       state->position.node = attributed_sensor;

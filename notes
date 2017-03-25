@@ -249,28 +249,27 @@ time offset (train) ~ 0.25
 
 
 
+test/bugs
+=====
+stop on switch
+stop on br sens
+dynamic tuning of velocity
+massive offset/wrong stopping distnace after hitting a broken switch?
 
-
-todo
+new stuff
 ============
-massive offset after hitting a broken switch?
-switch/sensor break - test stopping on them
-
-///
 debug stopping distance discrepancy (timing? recalibrate?)
 recalibrate acel/decel - tighten attrib bounds
 
-//// 1h
+refactoring
+=============
 rely on timestamps
 refactor into new file
 
-//// 1h
-handle stopping after the same sensor it is currently on...
 
-sat
+later
 ===========
 sensor error recovery/reset (lost trains - failed to attrib?)
 reroute on switch break integration
 bug - stray broken sensor after broken switch (might not be a problem - might just be slow path finding blocking)
-
-
+handle stopping after the same sensor it is currently on...
