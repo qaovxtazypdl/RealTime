@@ -251,10 +251,8 @@ time offset (train) ~ 0.25
 
 test/bugs
 =====
-stop on switch
-stop on br sens
-dynamic tuning of velocity
-massive offset/wrong stopping distnace after hitting a broken switch?
+massive offset/wrong stopping distnace after hitting a broken switch? wrong stopping distance after br sw?
+short move bug
 
 new stuff
 ============
