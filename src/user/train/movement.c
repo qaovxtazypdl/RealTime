@@ -439,10 +439,10 @@ int update_travel_plans(struct movement_state *state) {
       return -1;
     }
 
-    printf(COM2, "stopping position determined: %d mm past sensor %s (backup %d mm past sensor %s) \n\r",
+    /*printf(COM2, "stopping position determined: %d mm past sensor %s (backup %d mm past sensor %s) \n\r",
       state->stop_position.offset, state->stop_position.node->name,
       state->bsens_stop_position.offset, state->bsens_stop_position.node->name
-    );
+    );*/
     return 0;
   }
 }
