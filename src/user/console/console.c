@@ -23,9 +23,9 @@ static void inline handle_io() {
         input_buffer[0] = '\0';
         input_sz = 0;
 
-        printf(COM2, "%m%s%s",  
-            (int[]){ 0, PROMPT_LINE }, 
-            CLEAR_LINE, 
+        printf(COM2, "%m%s%s",
+            (int[]){ 0, PROMPT_LINE },
+            CLEAR_LINE,
             PROMPT);
         break;
       case '\b':
@@ -34,7 +34,7 @@ static void inline handle_io() {
             printf(COM2, "\b%s", CLEAR_EOL);
             input_buffer[--input_sz] = '\0';
           }
-        } 
+        }
         break;
       default:
         if(input_sz < INPUT_BUFFER_SZ) {
@@ -89,4 +89,65 @@ void update_switch_entry(int turnout, int curved) {
       curved ? 'C' : 'S',
       "\x1B[39m",
       RESTORE_CURSOR);
+}
+
+void update_train_info(
+  int num,
+  int line,
+  enum direction reverse,
+  struct position *position,
+  int velocity,
+  int acceleration
+) {
+  printf(COM2,
+    "%s%m%sTRAIN{%d}:\t%dmm past node %s, [%s], v=%d, a=%d%s",
+    SAVE_CURSOR,
+    /* Avoid magic numbers, define this as a macro and move this function into console.c */
+    (int[]){0, TRAIN_INFO_LINE_START + line},
+    CLEAR_LINE,
+    num,
+    position->offset,
+    (position == NULL || position->node == NULL) ? "X" : position->node->name,
+    reverse == FORWARD ? "FWD" : "REV",
+    velocity,
+    acceleration,
+    RESTORE_CURSOR
+  );
+}
+
+void print_broken(char *name, int line) {
+  printf(COM2,
+    "%s%m%sBROKEN: %s\n\r%s",
+    SAVE_CURSOR,
+    (int[]){0, SENSOR_INFO_LINE_START + line},
+    CLEAR_LINE,
+    name,
+    RESTORE_CURSOR
+  );
+}
+
+void update_sensor_display(struct movement_state *state, int delta_t, int delta_d, int line) {
+  char *accel_state;
+  if (state->accel_from_last_sensor == ACCELERATING) {
+    accel_state = "ACCEL";
+  } else if (state->accel_from_last_sensor == DECELERATING) {
+    accel_state = "DECEL";
+  } else {
+    accel_state = "";
+  }
+
+  int current_time = get_time() % 10000;
+  printf(COM2,
+    "%s%m%sTRAIN{%d}\tt: %d\tsens: %s\tdel_t: %d\tdel_d: %d mm\texp_next: %s\t%s%s",
+    SAVE_CURSOR,
+    (int[]){0, SENSOR_INFO_LINE_START + line},
+    CLEAR_LINE,
+    state->train_num,
+    current_time,
+    state->position.node ? state->position.node->name : "Y",
+    delta_t, delta_d,
+    state->expected_next_sensor ? state->expected_next_sensor->name : "X",
+    accel_state,
+    RESTORE_CURSOR
+  );
 }

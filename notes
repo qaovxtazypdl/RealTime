@@ -249,20 +249,18 @@ time offset (train) ~ 0.25
 
 
 
-test/bugs
+repro?
 =====
-massive offset/wrong stopping distnace after hitting a broken switch? wrong stopping distance after br sw?
 short move bug
 
 new stuff
 ============
 debug stopping distance discrepancy (timing? recalibrate?)
-recalibrate acel/decel - tighten attrib bounds
+recalibrate acel/decel - tighten attrib bounds TIGHTENNNN
 
 refactoring
 =============
 rely on timestamps
-refactor into new file
 
 
 later

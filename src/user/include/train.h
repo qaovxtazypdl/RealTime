@@ -4,14 +4,10 @@
 #include <track_node.h>
 #include <train/calibration.h>
 #include <routing.h>
+#include <movement.h>
 
 #define TRAIN_COM COM1
 #define MAX_TRAIN 200
-
-struct position {
-  struct track_node *node;
-  int offset;
-};
 
 struct train_command {
   enum train_command_type {
