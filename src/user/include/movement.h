@@ -4,6 +4,8 @@
 #include <train/calibration.h>
 #include <routing.h>
 
+#define TIME_FOREVER 0x0fffffff
+
 struct position {
   struct track_node *node;
   int offset;
@@ -54,8 +56,15 @@ struct movement_state {
   int stop_delay_tid, bsens_stop_delay_tid;
   int bsens_timeout_active;
 
+  // speed change
+  int speed_change_calc_delay_tid;
+  int speed_change_calc_delay_time;
+  int delayed_speed;
+  int delayed_speed_until;
+
   // updating
   int update_delay_tid;
+  int update_delay_time;
   enum travel_method travel_method;
 
   // expectation/sensor attribution
@@ -103,7 +112,11 @@ void reverse_train(
 void update_speed(
   struct movement_state *state,
   int speed,
-  int until,
+  int until
+);
+void _update_speed_predictions(struct movement_state *state);
+void update_speed_predictions(
+  struct movement_state *state,
   ///
   struct position *position,
   int *velocity,

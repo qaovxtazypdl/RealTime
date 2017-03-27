@@ -12,6 +12,7 @@ struct train_calibration {
   int b;
   int speed_change_time_offset;
   int startup_time;
+  int decel_offset;
 
   int forward_offset;
   int reverse_offset;

@@ -92,6 +92,7 @@ void handle_attrib_2_cmd() {
   handle_create_train_cmd(58);
   delay(60);
   handle_route_train_cmd(71, "A1", "C6");
+  delay(60);
   handle_route_train_cmd(58, "C6", "C16");
 }
 
@@ -102,6 +103,7 @@ void handle_bsens_cmd() {
   int i = 0;
   while (sensors[i] != NULL) {
     printf(COM2, "BSENS: %s\n\r", sensors[i]->name);
+    i++;
   }
 }
 
@@ -112,6 +114,7 @@ void handle_bsw_cmd() {
   int i = 0;
   while (switches[i].node != NULL) {
     printf(COM2, "BSW: %s, CURVED? %d\n\r", switches[i].node->name, switches[i].position);
+    i++;
   }
 }
 

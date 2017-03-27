@@ -14,8 +14,7 @@
 
 static int current_debug_line = 0;
 
-#define TIME_FOREVER 0x0fffffff
-#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 400
+#define SENSOR_ATTRIBUTION_DISTANCE_TOLERANCE 250
 
 /* I am going to pretend I didn't see this. */
 inline unsigned int isqrt(unsigned int x){
@@ -65,9 +64,9 @@ inline void update_current_velocity(struct movement_state *state, int *velocity)
   }
 
   // assumption - time not yet past the current accel update time
-  *velocity = state->accel.start_velocity + accel * min(
+  *velocity = state->accel.start_velocity + accel * max(0, min(
     current_time - state->accel.acceleration_update_time, state->accel.duration
-  ) / 100;
+  )) / 100;
 }
 inline void update_current_acceleration(struct movement_state *state, int *acceleration) {
   if (state->accel.state == UNIFORM) {
@@ -206,10 +205,8 @@ means the path is empty).  */
   return path_index;
 }
 
-/* I would prefer to call this path_distance, length usually refers to the size
-of a buffer in C. */
-int path_length(struct track_node **path) {
-  int i = 0;
+int path_length_from_index(struct track_node **path, int start_index) {
+  int i = start_index;
   int retval = 0;
   int length = 0;
   int new_distance = 0;
@@ -220,6 +217,11 @@ int path_length(struct track_node **path) {
   }
 
   return length;
+}
+/* I would prefer to call this path_distance, length usually refers to the size
+of a buffer in C. */
+int path_length(struct track_node **path) {
+  return path_length_from_index(path, 0);
 }
 /* It's no*/
 int advance_train_by_sensor(struct track_node **path, int path_index, int *offset, int distance) {
@@ -277,12 +279,12 @@ int get_offset_from_current_position(struct movement_state *state) {
   }
 
   int t = min(current_time - state->accel.acceleration_update_time, state->accel.duration);
-
   d = (v_i * t / 100) + (a * t * t / 2 / 10000);
   if (current_time - state->accel.acceleration_update_time >= state->accel.duration) {
     // finished accelerating... set back to constant velocity
     int v_f = state->speed == 0 ? 0 : state->calibration.speed_to_velocity[state->speed];
     d += v_f * (current_time - state->accel.acceleration_update_time - state->accel.duration) / 100;
+
   }
   return d;
 }
@@ -309,10 +311,10 @@ void update_acceleration_and_position(struct movement_state *state) {
     a = -state->calibration.deceleration;
   }
 
+  //printf(COM2, "[t %d]", current_time - state->accel.acceleration_update_time);
   if (current_time - state->accel.acceleration_update_time >= state->accel.duration) {
     // finished accelerating... set back to constant velocity
     int v_f = state->speed == 0 ? 0 : state->calibration.speed_to_velocity[state->speed];
-
     state->accel.state = UNIFORM;
     state->accel.acceleration_update_time = current_time;
     state->accel.start_velocity = v_f;
@@ -325,57 +327,71 @@ void update_acceleration_and_position(struct movement_state *state) {
     state->accel.acceleration_update_time = current_time;
     state->accel.start_velocity = v_f;
   }
+  //printf(COM2, "[d %d]", d);
   state->position.offset += d;
 }
 /* Consumes */
-void _update_speed(struct movement_state *state, int speed, int until) {
+void update_speed(struct movement_state *state, int speed, int until) {
+  int current_time = get_time();
   if (speed != state->speed) {
-    int current_time = get_time();
-    if (state->speed == 0 && speed > 0 && state->accel.state == UNIFORM) {
-      current_time += state->calibration.startup_time;
-    }
+    int speed_change_delay = state->speed == 0 ?
+      state->calibration.startup_time :
+      state->calibration.speed_change_time_offset;
+    tr_set_speed(state->train_num, speed);
 
-    // update position based on old accel profile
-    update_acceleration_and_position(state);
-
-    // update acceleration profile to match new speed
-    int a = speed > state->speed ? state->calibration.acceleration : -state->calibration.deceleration;
-    int old_velocity = state->accel.start_velocity + a * min(
-      current_time - state->accel.acceleration_update_time, state->accel.duration
-    ) / 100;
-    state->accel.state = speed > state->speed ? ACCELERATING : DECELERATING;
-    state->accel_from_last_sensor = speed > state->speed ? ACCELERATING : DECELERATING;
-    state->accel.start_velocity = old_velocity;
-    // it takes some time for the train to register a speed command.
-    state->accel.acceleration_update_time = current_time;
-    state->accel.duration = 100 *
-      (state->calibration.speed_to_velocity[speed] - old_velocity) / a;
-
-    // set speed
-    state->speed = speed;
-    tr_set_speed(state->train_num, state->speed);
+    state->delayed_speed = speed;
+    state->delayed_speed_until = until;
+    state->speed_change_calc_delay_tid = delay_until_async(current_time + speed_change_delay);
+    state->speed_change_calc_delay_time = current_time + speed_change_delay;
   }
+}
+
+void _update_speed_predictions(struct movement_state *state) {
+  int current_time = get_time();
+  int speed = state->delayed_speed;
+  state->delayed_speed = 0;
+  int until = state->delayed_speed_until;
+  state->delayed_speed_until = 0;
+  state->speed_change_calc_delay_tid = 0;
+  state->speed_change_calc_delay_time = TIME_FOREVER;
+
+  // update position based on old accel profile
+  update_acceleration_and_position(state);
+
+  // update acceleration profile to match new speed
+  state->accel.state = speed > state->speed ? ACCELERATING : DECELERATING;
+  state->accel_from_last_sensor = speed > state->speed ? ACCELERATING : DECELERATING;
+
+  // it takes some time for the train to register a speed command.
+  int a = speed > state->speed ? state->calibration.acceleration : -state->calibration.deceleration;
+  state->accel.acceleration_update_time = current_time;
+  state->accel.duration = 100 *
+    (state->calibration.speed_to_velocity[speed] - state->accel.start_velocity) / a;
+
+  // set speed
+  state->speed = speed;
 
   if (until > 0) {
     state->stop_delay_tid = delay_until_async(until);
+    state->stopping_time = until;
   } else {
     state->update_delay_tid = delay_async(state->accel.duration);
+    state->update_delay_time = current_time + state->accel.duration;
   }
 }
-void update_speed(
+void update_speed_predictions(
   struct movement_state *state,
-  int speed,
-  int until,
   struct position *position,
   int *velocity,
   int *acceleration
 ) {
-  _update_speed(state, speed, until);
+  _update_speed_predictions(state);
 
   update_current_position(state, position);
   update_current_velocity(state, velocity);
   update_current_acceleration(state, acceleration);
 }
+
 
 // returns -1 if stopping position is behind
 int update_travel_plans(struct movement_state *state) {
@@ -404,18 +420,19 @@ int update_travel_plans(struct movement_state *state) {
     }
 
     state->stopping_time = get_time() + short_move_ticks;
-    printf(COM2, "short move parameters determined: ticks=%d, distance=%d", short_move_ticks, distance);
+   //printf(COM2, "short move parameters determined: ticks=%d, distance=%d", short_move_ticks, distance);
 
-    _update_speed(state, 14, state->stopping_time);
+    update_speed(state, 14, state->stopping_time);
     return 0;
   } else {
     state->travel_method = LONG_MOVE;
     // wtf (this is needed)
     distance += state->position.offset;
-    _update_speed(state, 12, 0);
+    int lm_speed = 12;
+    update_speed(state, lm_speed, 0);
 
     int sensor_attribute_offset = state->is_reversed ? state->calibration.reverse_offset : state->calibration.forward_offset;
-    int stopping_distance = state->calibration.stopping_distance[state->speed] + sensor_attribute_offset;
+    int stopping_distance = state->calibration.stopping_distance[lm_speed] + sensor_attribute_offset;
     if (distance < stopping_distance) {
       return -1;
     }
@@ -482,6 +499,8 @@ void _update_path(struct movement_state *state, struct track_node **new_path, in
   if (i == 0) {
     return;
   }
+
+  update_acceleration_and_position(state);
 
   current_debug_line = 0;
 
@@ -557,7 +576,7 @@ int _get_broken_switch_next_sensors(
       // correct broken branch
       if (brs_result || brc_result) {
         for(i = start_index; i < end_index; i++) {
-          broken[*length].broken = node;
+          broken[i].broken = node;
         }
       }
       return 0;
@@ -637,7 +656,7 @@ void get_broken_sensor_next_sensor(struct track_node **path, int path_index, str
 
 void _handle_sensors(struct movement_state *state, struct track_node **sensors) {
   int i = 0;
-  if (sensors[0] == NULL) {
+  if (sensors[0] == NULL || (state->accel.state == UNIFORM && state->speed == 0)) {
     return;
   }
 
@@ -653,13 +672,15 @@ void _handle_sensors(struct movement_state *state, struct track_node **sensors) 
     broken_switch
   );
 
-/*
-  printf(COM2, "bsens: %s, bsensdist: %d\n\r",  broken_sensor.sensor == NULL ? "x" : broken_sensor.sensor->name, broken_sensor.distance);
-  int dbg = 0;
-  for (dbg = 0; dbg < bsw_sens_count; dbg++) {
-    printf(COM2, "bsw_i=%d, bsw: %s, bsw_d: %d\n\r", dbg, broken_switch[dbg].sensor->name, broken_switch[dbg].distance);
-  }
-*/
+
+  //printf(COM2, "bsens: %s, bsensdist: %d\n\r",  broken_sensor.sensor == NULL ? "x" : broken_sensor.sensor->name, broken_sensor.distance);
+  /*if (sensors[0]->num == 14) {
+    int dbg = 0;
+    for (dbg = 0; dbg < bsw_sens_count; dbg++) {
+      printf(COM2, "bsw_i=%d, bsw: %s, bsw_d: %d, bk: %s\n\r", dbg, broken_switch[dbg].sensor->name, broken_switch[dbg].distance, broken_switch[dbg].broken->name);
+    } 
+  }*/
+
   int d_offset_from_current_node = get_offset_from_current_position(state) + state->position.offset;
   int d_offset_from_prev_sensor_if_different = get_offset_from_current_position(state) +
     (state->position_definite_if_different.node != NULL ? state->position_definite_if_different.offset : state->position.offset);
@@ -801,8 +822,13 @@ void train_reset(struct movement_state *state) {
   state->speed = 0;
   state->is_reversed = 0;
   state->update_delay_tid = -1;
+  state->update_delay_time = TIME_FOREVER;
   state->stop_delay_tid = -1;
+  state->stopping_time = TIME_FOREVER;
   state->bsens_stop_delay_tid = -1;
+  state->bsens_stopping_time = TIME_FOREVER;
+  state->speed_change_calc_delay_tid = -1;
+  state->speed_change_calc_delay_time = TIME_FOREVER;
   state->has_path_completed = 1;
 
   if (g_is_track_a) {
@@ -832,7 +858,11 @@ should not be doing it in critical code anyway. */
 }
 
 void finish_path(struct movement_state *state) {
-  int delta_d = state->position.offset - (state->dist_to_next_sens + state->destination_offset);
+  if (state->travel_method == LONG_MOVE) {
+    state->position.offset += state->calibration.decel_offset;
+  }
+  int d_to_end = path_length_from_index(state->path, state->path_index);
+  int delta_d = state->position.offset - (d_to_end + state->destination_offset);
   int delta_t = delta_d * 100 / state->accel.start_velocity;
 
   if (state->path[state->path_length - 1] != state->position.node) {
@@ -854,7 +884,7 @@ void finish_path(struct movement_state *state) {
 }
 
 void _handle_accel_finished(struct movement_state *state) {
-  if (state->accel.acceleration_update_time + state->accel.duration) {
+  if (state->accel.acceleration_update_time + state->accel.duration <= get_time()) {
     update_acceleration_and_position(state);
 
     // if stopped (zpeed is zero, and accel updated to uniform stopped), finish off the path and update position

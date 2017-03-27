@@ -43,7 +43,7 @@ proc_state_t *irq(proc_state_t *state) {
 
   switch(type) {
     case INT_TIMER:
-      timer_clear_interrupt(); 
+      timer_clear_interrupt();
       event_notify(EVENT_TIMER_INTERRUPT, 0, NULL, 0);
       break;
     case INT_UART2_RX:
@@ -64,19 +64,19 @@ proc_state_t *irq(proc_state_t *state) {
       break;
     case INT_UART1_CTS:
       ua_clear_cts(COM1);
-      if((++kern_cts1 == 2) && 
+      if((++kern_cts1 == 2) &&
           !event_notify(EVENT_UART1_CTS, 0, NULL, 0))
         kern_cts1 = 0;
       break;
     case INT_UART2_CTS:
       ua_clear_cts(COM2);
-      if((++kern_cts2 == 2) && 
+      if((++kern_cts2 == 2) &&
           !event_notify(EVENT_UART2_CTS, 0, NULL, 0))
         kern_cts2 = 0;
       break;
     default:
-      kassert(0, "A WILD INTERRUPT HAS APPEARED!, VIC2_STAT: %x, VIC1_STAT: %x", 
-          *((int*)(VIC2_BASE + VIC_IRQ_STATUS_OFFSET)), 
+      kassert(0, "A WILD INTERRUPT HAS APPEARED!, VIC2_STAT: %x, VIC1_STAT: %x",
+          *((int*)(VIC2_BASE + VIC_IRQ_STATUS_OFFSET)),
           *((int*)(VIC1_BASE + VIC_IRQ_STATUS_OFFSET)));
       break;
   }

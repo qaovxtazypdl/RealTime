@@ -40,11 +40,11 @@ static void clock_server() {
     if(td == cn) {
         reply(td, NULL, 0);
         /* FIXME this could overflow after an hour or so, depending on the granularity of the clock */
-        ctime++; 
+        ctime++;
 
-        /* FIXME a bit expensive and cumbersome, 
+        /* FIXME a bit expensive and cumbersome,
            but reliable (also makes an implicit assumption that requests are distinct) */
-        if(!queue_consume(&delayed_tasks, &start)) { 
+        if(!queue_consume(&delayed_tasks, &start)) {
           queue_add(&delayed_tasks, &start);
 
           while(!queue_consume(&delayed_tasks, &pt)) {
@@ -71,7 +71,7 @@ static void clock_server() {
         break;
       case CLOCK_SERVER_DELAY_UNTIL_REQUEST:
         pt.td = td;
-        pt.time = msg.delay; 
+        pt.time = msg.delay;
         full = queue_add(&delayed_tasks, &pt);
         assert(!full, "clock queue full!");
         break;
@@ -106,7 +106,7 @@ static void until_courier() {
   send(td, &time, sizeof(time), NULL, 0);
 }
 
-/* API 
+/* API
 
 ==================================================================================*/
 
@@ -133,7 +133,7 @@ int delay(int ticks) {
   return (rc < 0) ? rc : 0;
 }
 
-int get_time() { 
+int get_time() {
   assert(init == 1, "init_clock_server() must be called exactly once");
   int rc, time;
   struct clsv_msg msg;

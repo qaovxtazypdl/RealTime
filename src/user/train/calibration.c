@@ -9,12 +9,14 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->reverse_offset = 142;
     calibration->train_length = 209;
 
-    calibration->acceleration = 143;
-    calibration->deceleration = 127;
+
+    calibration->acceleration = 150;
+    calibration->deceleration = 140;
     calibration->k = 157;
     calibration->b = 12;
     calibration->speed_change_time_offset = 34;
-    calibration->startup_time = 190;
+    calibration->startup_time = 62;
+    calibration->decel_offset = -20;
 
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 12;
@@ -48,7 +50,7 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->stopping_distance[12] = 692;
     calibration->stopping_distance[13] = 882;
     calibration->stopping_distance[14] = 1170;
-  } else if (train_num == 63) {
+  } else if (train_num == -1) {
     /* train 63 */
     calibration->train_num = 63;
     calibration->forward_offset = 34;
@@ -100,12 +102,13 @@ void init_calibration(struct train_calibration *calibration, int train_num) {
     calibration->reverse_offset = 143;
     calibration->train_length = 208;
 
-    calibration->acceleration = 143;
-    calibration->deceleration = 127;
-    calibration->startup_time = 175;
+    calibration->acceleration = 160;
+    calibration->deceleration = 140;
+    calibration->startup_time = 62;
     calibration->k = 152;
     calibration->b = 12;
     calibration->speed_change_time_offset = 27;
+    calibration->decel_offset = -38;
 
     calibration->speed_to_velocity[0] = 0;
     calibration->speed_to_velocity[1] = 12;

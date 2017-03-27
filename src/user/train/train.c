@@ -45,26 +45,40 @@ void train() {
   } msg;
 
   int sens_tid = sensor_subscribe();
-
+  int current_time = get_time();
   while(1) {
     update_train_info(num, line, reverse, &position, velocity, acceleration);
     receive(&tid, &msg, sizeof(msg));
+    current_time = get_time();
     update_current_quantities(&state, &reverse, &position, &velocity, &acceleration, path);
 
     if(tid == sens_tid) {
       reply(tid, NULL, 0);
       handle_sensors(&state, msg.sensors, &position, &velocity, &acceleration);
-    } else if(tid == state.stop_delay_tid || tid == state.bsens_stop_delay_tid) {
+    } else if(
+      tid == state.stop_delay_tid ||
+      tid == state.bsens_stop_delay_tid ||
+      tid == state.update_delay_tid ||
+      tid == state.speed_change_calc_delay_tid) {
       reply(tid, NULL, 0);
+
       if (
-        state.stopping_time <= get_time() ||
-        (state.bsens_timeout_active && state.bsens_stopping_time <= get_time())
+        state.stopping_time <= current_time ||
+        (state.bsens_timeout_active && state.bsens_stopping_time <= current_time)
       ) {
-        update_speed(&state, 0, 0, &position, &velocity, &acceleration);
+        update_speed(&state, 0, 0);
+        state.stopping_time = TIME_FOREVER;
+        state.bsens_stopping_time = TIME_FOREVER;
+        state.bsens_timeout_active = 0;
       }
-    } else if (tid == state.update_delay_tid) {
-      reply(tid, NULL, 0);
-      handle_accel_finished(&state, &position, &velocity, &acceleration);
+
+      if (state.update_delay_time <= current_time) {
+        handle_accel_finished(&state, &position, &velocity, &acceleration);
+      }
+
+      if (state.speed_change_calc_delay_time <= current_time) {
+        update_speed_predictions(&state, &position, &velocity, &acceleration);
+      }
     } else {
       int should_reverse = 0;
       struct position new_position;
@@ -72,6 +86,7 @@ void train() {
         case TRAIN_COMMAND_SET_PATH:
           reply(tid, NULL, 0);
           should_reverse = 0;
+
           update_path(
             &state,
             msg.command.path,
@@ -84,6 +99,7 @@ void train() {
             &acceleration,
             path
           );
+
           break;
         case TRAIN_COMMAND_GET_POSITION:
           get_position(&state, &new_position);
