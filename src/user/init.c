@@ -3,6 +3,7 @@
 #include <common/syscall.h>
 #include <common/uart.h>
 #include <console.h>
+#include <reservations.h>
 #include <clock_server.h>
 #include <clock_printer.h>
 #include <idle_task.h>
@@ -20,6 +21,7 @@ void initTask() {
   init_sensors();
   init_switches();
 
+  create(1, reservation_server);
   create(1, clock_printer);
   create(1, console_task);
 }

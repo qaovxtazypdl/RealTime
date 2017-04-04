@@ -428,11 +428,9 @@ int update_travel_plans(struct movement_state *state) {
     state->travel_method = LONG_MOVE;
     // wtf (this is needed)
     distance += state->position.offset;
-    int lm_speed = 12;
-    update_speed(state, lm_speed, 0);
 
     int sensor_attribute_offset = state->is_reversed ? state->calibration.reverse_offset : state->calibration.forward_offset;
-    int stopping_distance = state->calibration.stopping_distance[lm_speed] + sensor_attribute_offset;
+    int stopping_distance = state->calibration.stopping_distance[12] + sensor_attribute_offset;
     if (distance < stopping_distance) {
       return -1;
     }
@@ -521,7 +519,6 @@ void _update_path(struct movement_state *state, struct track_node **new_path, in
   }
 
   update_travel_plans(state);
-  path_activate(state->path);
   update_sensor_prediction(state);
 
   update_sensor_display(state, 0, 0, current_debug_line++);
@@ -678,7 +675,7 @@ void _handle_sensors(struct movement_state *state, struct track_node **sensors) 
     int dbg = 0;
     for (dbg = 0; dbg < bsw_sens_count; dbg++) {
       printf(COM2, "bsw_i=%d, bsw: %s, bsw_d: %d, bk: %s\n\r", dbg, broken_switch[dbg].sensor->name, broken_switch[dbg].distance, broken_switch[dbg].broken->name);
-    } 
+    }
   }*/
 
   int d_offset_from_current_node = get_offset_from_current_position(state) + state->position.offset;

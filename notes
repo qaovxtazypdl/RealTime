@@ -248,13 +248,18 @@ time offset (sensor AND train) 0.45
 time offset (train) ~ 0.25
 
 
+res todo
+==========
+display per train which tracks it owns
+
+
+todo
+==================
 getc blocked when putc in progress?
+reroute on switch break integration
+lost trains recovery/detection
+
 
 refactoring
 =============
 get rid of global track flag (?)
-
-later
-===========
-lost trains recovery?
-reroute on switch break integration

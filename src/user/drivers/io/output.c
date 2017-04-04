@@ -13,7 +13,7 @@ static void write_char(int *tx, int *cts, int tx_td,
                        int cts_td, queue_t *q, int channel) {
   char c;
 
-  
+
   if(*tx && *cts && !queue_consume(q, &c)) {
     ua_write(channel, c);
 
@@ -50,7 +50,7 @@ void output_server() {
   } else {
     register_as("output_server_2");
     tx_td = create_notifier(0, EVENT_UART2_TX, NULL);
-  } 
+  }
 
   while(1) {
     receive(&td, &msg, sizeof(msg));
