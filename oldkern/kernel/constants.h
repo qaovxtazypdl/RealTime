@@ -1,0 +1,20 @@
+#ifndef _KERNEL__CONSTANTS_H_
+#define _KERNEL__CONSTANTS_H_
+
+#include "common/constants.h"
+
+#define SEND_QUEUE_LENGTH 16
+#define USER_STACK_TOP ((int *) 0x1d00000)
+#define TASK_STACK_SIZE ((0x1d00000 - 0x00400000) / NUM_TASKS_MAX) /* 200 kb */
+#define MAX_PRIORITY (NUM_SCHEDULER_PRIORITIES - 1)
+#define NUM_SCHEDULER_PRIORITIES 32
+#define NUM_IRQ_MAX 64
+
+#define TIMER_3_FREQUENCY_CENTISECOND 5084
+
+/* timing tests */
+#define TEST_MESSAGE_BYTES 4
+#define CACHES_ON ON
+#define SEND_BEFORE_REPLY NO
+
+#endif

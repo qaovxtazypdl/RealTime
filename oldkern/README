@@ -1,0 +1,77 @@
+=== Kernel Operation ===
+Program Compilation, Location, and Operation
+
+The source code is available on GitLabs, at https://git.uwaterloo.ca/rvaiya/cs452-a1/tree/x67zhao.
+To clone and compile:
+1.  git clone –b x67zhao https://git.uwaterloo.ca/rvaiya/cs452.git
+2.  Run make from /bwio/, then make from the root directory of the repository.
+3.  Copy the resulting kernel.elf file into a place within the TFTS directory.
+4.  Run load -b 0x00218000 -h 10.15.167.5 "<path_to_file>"; go from RedBoot.
+
+A compiled executable of the kernel is provided at /u/cs452/tftp/ARM/x67zhao/kernel.elf.
+Run load -b 0x00218000 -h 10.15.167.5 "ARM/x67zhao/kernel.elf"; go to run the compiled kernel provided.
+Once loaded into the kernel from RedBoot, the first user task will create four instances of the testing tasks
+at two different priorities. These tasks print out some information using busy wait IO, and then exit.
+When all tasks have exited, the kernel itself exits. This assignment contains no interactive elements.
+
+
+
+
+
+
+=== Development Notes ===
+# Organization
+
+## Guidelines (feel free to suggest alterations)
+
+- All source files should go into src.
+- All libraries should be stored in their own folders.
+- All headers should be stored or linked to the top level include directory.
+- All intermediate assembly should be stored in the top level asm directory
+- All intermediate object files should be stored in the top level obj directory
+- The main binary is called main.elf
+- All data structures should go into src/ds
+- Data structures should be platform independent and vetted with their own commit before being checked into master
+Functions should always return 0 on success (unless the return value is meaningful in which case the function
+should accept an error pointer)
+- Type names with explicit lengths should be preferred (i.e int32_t vs int, available in types.h) [probably unncessary since we
+are only targetting the arm box, but good practice anyway]
+
+# Emulator Notes
+
+A binary which runs on the emulator can be compiled by setting the EMULATOR_BUILD variable.
+
+E.G
+
+EMULATOR_BUILD=1 make
+
+To run the compiled elf on the emulator run
+
+~rvaiya/qemu/usr/local/bin/qemu-system-arm -M realview-eb -cpu arm926 -kernel <elf file> -nographic
+
+## Development
+
+All emulator specific code should be stored in src/emul. Ideally all code which
+does not interact with the UARTs (i.e uart.c) should not have any knowledge of
+the emulator (and even uart.c does not rely on it presently, see below).
+
+Bugs:
+
+TIMER/UART1/certain UART2 control registers have not been properly added to
+pl011.h. If you experience emulator-specific problems this is the first place
+to look (pl011.h).
+
+Since the location of the UART registers is different on the realview-eb, a
+different include file containing the appropriate macro definitions is used in
+place of ts7200 whenever the EMULATOR_BUILD symbol is present. pl011.h was
+created by copying ts7200.h and making minor modifications to get bwio.c to
+compile, since the layout of the UART registers for the emulated UART (PL011)
+is different from the ts7200 (which uses 16550 UARTs) a simple mapping of
+registers and bit locations may prove to be inadequate. For basic I/O they (so
+far) appear to be sufficient, but control registers will cause problems (i.e
+bwsetfifo and friends). Since we will primarily be interacting with the
+emulator via IO this may not be a problem. Most importantly all non i/o arm
+code should run without issue on both the emulator and ts7200 (assuming there
+are no bugs in the qemu emulation code :P).
+
+Naturally you should also test all code on the actual ts7200.
