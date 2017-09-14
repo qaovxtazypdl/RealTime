@@ -1,3 +1,20 @@
+Repo Map:
+/oldkern: contains the kernel I created for the first half of the project.
+  ->/kernel: main kernel code (scheduler, context switch, etc)
+  ->/tasks: user tasks (nameserver, clock server, train controller, IO)
+  
+ /src: contains the contents of the final product
+  ->/kern: kernel code (scheduler, context switch, etc)
+  ->/common: utility modules (data structures, string utils, mem utils, constants)
+  ->/user: 
+    ->/drivers, /name_server : user tasks (nameserver, clock server, train controller, IO)
+    ->/user/train: tasks for modelling train parameters and managing train and track state
+    ->/routing: graph traversal/route optimizer code
+
+
+====================================================================================
+<Legacy: RedBoot + TS7200>
+
 To compile type simply type make, main.elf will be generated in the root directory
 To run copy main.elf to the tftp server and run
 
